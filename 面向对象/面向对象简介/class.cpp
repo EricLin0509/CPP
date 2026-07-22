@@ -19,8 +19,7 @@ class Human {
         }
 };
 
-int main()
-{
+int main() {
     Human person1;
     person1.name = "John";
     person1.age = 25;
