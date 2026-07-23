@@ -5,6 +5,12 @@ class Pizza {
         std::string topping1;
         std::string topping2;
 
+        Pizza()
+        {
+            this->topping1 = "Pepperoni";
+            this->topping2 = "";
+        }
+
         Pizza(std::string topping1)
         {
             this->topping1 = topping1;
@@ -34,6 +40,9 @@ int main() {
 
     Pizza pizza2("Pepperoni", "Mushrooms");
     pizza2.print_toppings();
+
+    Pizza pizza3;
+    pizza3.print_toppings();
 
     return 0;
 }

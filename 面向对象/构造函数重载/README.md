@@ -16,6 +16,10 @@ class 类名 {
 ```
 
 - 每个构造函数的**参数列表必须不同**
+- 构造函数重载与普通函数重载的规则相同
+    - 参数类型不同
+    - 参数个数不同
+    - 参数顺序不同
 
 ## 示例
 
@@ -55,7 +59,7 @@ Pizza pizza1("Pepperoni");
 Pizza pizza2("Pepperoni", "Mushrooms");
 ```
 
-此时会出现编译错误，因为构造函数的参数列表不同
+此时会出现编译错误，因为没有匹配两个参数的构造函数
 
 ```
 overload_constructor.cpp:17:42: error: 对‘Pizza::Pizza(const char [10], const char [10])’的调用没有匹配的函数
@@ -96,3 +100,32 @@ Pizza pizza1("Pepperoni");
 ```cpp
 Pizza pizza2("Pepperoni", "Mushrooms");
 ```
+
+### 默认构造函数
+
+通常情况下，编译器会自动生成一个默认构造函数，该构造函数不带参数，且不执行任何操作
+
+如果定义了任何带参数的构造函数，编译器将不再自动生成默认构造函数
+
+此时如果需要无参构造，必须显式定义
+
+```cpp
+class Pizza {
+    public:
+        std::string topping1;
+        std::string topping2;
+
+        Pizza()
+        {
+            this->topping1 = "Pepperoni";
+            this->topping2 = "";
+        }
+};
+```
+
+此时可以创建一个不指定配料的披萨
+
+```cpp
+Pizza pizza3; // 括号可以省略
+```
+
