@@ -41,7 +41,7 @@ int main() {
         computer->getInfo(); // 调用各自重写的虚函数
     }
 
-    // computer1.installSoftware(); // 这行代码会报错，动态多态无法访问子类特有的成员函数
+    // computers[0]->installSoftware(); // 这行代码会报错，动态多态无法访问子类特有的成员函数
 
     return 0;
 }

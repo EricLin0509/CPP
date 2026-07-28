@@ -63,7 +63,7 @@ os->getInfo();
 但**不能访问子类特有**的成员函数
 
 ```cpp
-linux.installSoftware(); // 错误，无法访问子类特有的成员函数
+os->installSoftware(); // 错误，无法访问子类特有的成员函数
 ```
 
 ```
