@@ -1,19 +1,66 @@
 # STL 库
 
-STL (Standard Template Library) 是 C++ 标准库的一部分
+STL (Standard Template Library) 是 C++ 标准库的一部分，提供了许多模板类和算法
 
-提供了许多模板类和算法，用于处理各种数据结构和操作
+## 容器（Containers）
 
-以下是一些常见的 STL 库组件：
+### 底层容器
 
-1. **容器（Containers）**：
+底层容器包含序列容器、关联容器和无序容器
+
+- **序列容器**
   - `vector`：动态数组
   - `deque`：双向队列
   - `list`：双向链表
-2. **迭代器（Iterators）**：
-  - `iterator`：迭代器基类
-  - `input_iterator`、`output_iterator`、`forward_iterator`、`bidirectional_iterator`、`random_access_iterator`：不同类型的迭代器
-3. **算法（Algorithms）**：
-  - `sort`：排序
-  - `find`：查找
-  - `copy`：复制
+  - `forward_list`：单向链表
+  - `array`：固定大小数组
+
+- **关联容器**
+  - `set`：集合
+  - `multiset`：多重集合
+  - `map`：映射
+  - `multimap`：多重映射
+
+- **无序容器**
+  - `unordered_set`：无序集合
+  - `unordered_multiset`：无序多重集合
+  - `unordered_map`：无序映射
+  - `unordered_multimap`：无序多重映射
+
+### 容器适配器
+
+- `stack`：栈
+- `queue`：队列
+- `priority_queue`：优先队列
+- `flat_map`: 平铺映射 (C++23新增)
+- `flat_set`: 平铺集合 (C++23新增)
+
+## 迭代器（Iterators）
+
+- `input_iterator`：输入迭代器
+- `output_iterator`：输出迭代器
+- `forward_iterator`：前向迭代器
+- `bidirectional_iterator`：双向迭代器
+- `random_access_iterator`：随机访问迭代器
+
+## 算法（Algorithms）
+
+### 非修改性算法
+
+- `find`、`count`、`search`、`equal`
+
+### 修改性算法
+
+- `copy`、`transform`、`replace`、`fill`
+
+### 排序与查找
+
+- `sort`、`stable_sort`、`binary_search`、`lower_bound`、`upper_bound`
+
+### 集合操作
+
+- `merge`、`set_union`、`set_intersection`、`set_difference`
+
+### 数值算法
+
+- `accumulate`、`inner_product`、`partial_sum`
