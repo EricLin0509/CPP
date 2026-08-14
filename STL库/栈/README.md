@@ -14,13 +14,13 @@
 #include <stack>
 ```
 
-### 直接声明
+### 基本声明
 
 ```cpp
 std::stack<类型> 栈名;
 ```
 
-### 声明并初始化
+### 声明并修改底层实现
 
 由于栈的定义如下
 
@@ -172,6 +172,24 @@ std::cout << "Number of elements: " << stack.size() << std::endl;
 std::vector<int> vec2 = {4, 5, 6};
 std::stack<int, std::vector<int>> stack2(vec2);
 stack.swap(stack2);
+```
+
+### 比较栈
+
+由于 `std::stack` 实现了 `operator==` 和 `operator!=`，所以可以直接比较两个栈的内容是否相同
+
+```cpp
+std::stack<int> stack3;
+stack3.push(1);
+stack3.push(2);
+stack3.push(3);
+
+std::stack<int> stack4;
+stack4.push(4);
+stack4.push(5);
+stack4.push(6);
+
+std::cout << "stack3 == stack4: " << (stack3 == stack4 ? "Yes" : "No") << std::endl;
 ```
 
 ### 遍历栈
