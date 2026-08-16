@@ -20,7 +20,7 @@ class Employee {
 
             std::cout << "Copy constructor called\n";
         }
-        Employee(Employee&& e) // 移动构造 (移动语义)
+        Employee(Employee&& e) noexcept // 移动构造 (移动语义)
         {
             this->name = std::move(e.name);
             this->id = std::move(e.id);

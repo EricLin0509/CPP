@@ -4,7 +4,7 @@ STL (Standard Template Library) 是 C++ 标准库的一部分，提供了许多�
 
 ## 容器（Containers）
 
-### 底层容器
+### [底层容器](底层容器/README.md)
 
 底层容器包含序列容器、关联容器和无序容器
 
@@ -27,13 +27,23 @@ STL (Standard Template Library) 是 C++ 标准库的一部分，提供了许多�
   - `unordered_map`：无序映射
   - `unordered_multimap`：无序多重映射
 
-### 容器适配器
+### [容器适配器](容器适配器/README.md)
 
 - `stack`：栈
 - `queue`：队列
 - `priority_queue`：优先队列
 - `flat_map`: 平铺映射 (C++23新增)
 - `flat_set`: 平铺集合 (C++23新增)
+
+## 底层容器与容器适配器的区别
+
+
+| 特性 | 底层容器 | 容器适配器 |
+| :--: | :----: | :------: |
+| 迭代器 | ✅ 支持 | ❌ 不提供 |
+| 随机访问 | ✅ 部分支持 | ❌ 不提供 |
+| 内存管理 | ✅ 直接管理 | ❌ 依赖底层容器 |
+| 接口丰富度 | ✅ 完整操作 | ⚠️ 受限接口 |
 
 ## 迭代器（Iterators）
 
