@@ -12,9 +12,9 @@
 
 底层容器包含序列容器、关联容器和无序容器
 
-- **序列容器**
-  - [`vector`](向量/README.md)：动态数组
-  - [`deque`](双向队列/README.md)：双向队列
+- [**序列容器**](序列容器/README.md)
+  - `vector`：动态数组
+  - `deque`：双向队列
   - `list`：双向链表
   - `forward_list`：单向链表
   - `array`：固定大小数组
@@ -30,3 +30,18 @@
   - `unordered_multiset`：无序多重集合
   - `unordered_map`：无序映射
   - `unordered_multimap`：无序多重映射
+
+## 迭代器失效
+
+迭代器失效是指在容器进行插入或删除操作时，迭代器指向的元素被删除或移动，导致迭代器失效
+
+```cpp
+std::deque<int> deque = {1, 2, 3, 4, 5};
+
+auto it = deque.begin();
+deque.clear(); // 清空双向队列，此时 `it` 失效
+
+std::cout << *it << "\n"; // 危险，这属于未定义行为
+```
+
+- 如果在迭代器失效后继续使用该迭代器，可能会导致程序崩溃或产生不可预测的结果
