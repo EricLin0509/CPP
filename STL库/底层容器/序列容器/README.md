@@ -9,7 +9,7 @@
 - [`vector`](向量/README.md)：动态数组
 - [`deque`](双向队列/README.md)：双向队列
 - [`list`](双向链表/README.md)：双向链表
-- `forward_list`：单向链表
+- [`forward_list`](单向链表/README.md)：单向链表
 - `array`：固定大小数组
 
 ## 共同方法
