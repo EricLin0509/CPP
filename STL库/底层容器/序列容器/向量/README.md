@@ -112,6 +112,46 @@ std::vector<int> vec2 = {4, 5, 6};
 vec1.swap(vec2); // 交换 vec1 和 vec2 的内容
 ```
 
+### 查看当前存储空间能够容纳的元素数
+
+使用 `capacity()` 方法可以查看当前存储空间能够容纳的元素数
+
+- **注意不要**与 `size()` 方法混淆
+    - `size()` 方法返回当前向量中实际存储的元素数
+    - `capacity()` 方法返回当前存储空间能够容纳的元素数
+
+```cpp
+std::vector<int> vec = {1, 2, 3};
+std::cout << "Capacity: " << vec.capacity() << "\n";
+```
+
+### 预留存储空间
+
+由于 `vector` 每次添加数据时，会先检查存储空间是否足够，如果不够会先分配新的存储空间，然后将旧的数据复制到新的存储空间中
+
+对于小量数据还行，但对于海量数据，频繁的分配和复制存储空间会严重影响性能
+
+因此，可以使用 `reserve()` 方法预先分配存储空间
+
+```cpp
+std::vector<int> vec;
+vec.reserve(1000); // 预留 1000 个元素的空间
+
+vec.push_back(1); // 添加元素
+vec.push_back(2); // 添加元素
+vec.push_back(3); // 添加元素
+
+std::cout << "Size: " << vec.size() << "\n";
+std::cout << "Capacity: " << vec.capacity() << "\n";
+```
+
+此时的 `size()` 和 `capacity()` 的值分别为 `3` 和 `1000`
+
+```bash
+Size: 3
+Capacity: 1000
+```
+
 ## 迭代器失效
 
 有关迭代器失效的描述，请参考[迭代器失效](../../README.md#迭代器失效)

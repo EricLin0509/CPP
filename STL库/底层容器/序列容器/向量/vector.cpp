@@ -4,7 +4,17 @@
 using std::vector;
 
 int main() {
-    vector<int> vec = {1, 2, 3, 4, 5};
+    vector<int> vec;
+    vec.reserve(10); // 预留空间
+
+    vec.push_back(1);
+    vec.push_back(2);
+    vec.push_back(3);
+    vec.push_back(4);
+    vec.push_back(5);
+
+    std::cout << "Size: " << vec.size() << "\n"; // 输出向量大小
+    std::cout << "Capacity: " << vec.capacity() << "\n"; // 输出向量容量
 
     try
     {
