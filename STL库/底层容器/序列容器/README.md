@@ -10,7 +10,7 @@
 - [`deque`](双向队列/README.md)：双向队列
 - [`list`](双向链表/README.md)：双向链表
 - [`forward_list`](单向链表/README.md)：单向链表
-- `array`：固定大小数组
+- [`array`](数组/README.md)：固定大小数组
 
 ## 共同方法
 
