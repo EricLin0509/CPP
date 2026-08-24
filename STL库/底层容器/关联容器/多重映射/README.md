@@ -1,8 +1,21 @@
-# 映射
+# 多重映射
 
-映射 (`std::map`) 是一个关联容器，它存储键值对，并且键是唯一的
+多重映射 (`std::multimap`) 是关联容器，它允许存储键值对
+
+相比 `std::map`，`std::multimap` 允许存储多个键相同的值
 
 它采用红黑树作为底层实现
+
+## 与 `std::map` 的区别
+
+| 特征 | `std::map` | `std::multimap` |
+| :--: | :-------: | :-------------: |
+| 键唯一性 | 是 | 否 |
+| 键值对数量 | 一个键对应一个值 | 一个键对应多个值 |
+| 索引操作符 `[]` | 支持 | 不支持 |
+| `insert()` 行为 | 键存在时插入失败 | 插入新键值对 |
+| `count()` 行为 | 只可能返回 0 或 1 | 返回键对应的值的数量 |
+| `erase()` 行为 | 删除键对应的唯一值 | 删除键对应的所有值 |
 
 ## 语法
 
@@ -15,9 +28,9 @@
 ### 声明
 
 ```cpp
-std::map<键类型, 值类型> 映射名;
-std::map<键类型, 值类型, 比较函数> 映射名;
-std::map<键类型, 值类型> 映射名 = {
+std::multimap<键类型, 值类型> 映射名;
+std::multimap<键类型, 值类型, 比较函数> 映射名;
+std::multimap<键类型, 值类型> 映射名 = {
     {键1, 值1},
     {键2, 值2},
     ...
@@ -33,8 +46,9 @@ std::map<键类型, 值类型> 映射名 = {
 现在声明一个映射
 
 ```cpp
-std::map<std::string, int> map;
+std::multimap<int, std::string> multi_map;
 ```
+
 ### 自定义比较函数
 
 有关比较函数的详细信息，请参考[自定义比较函数](../README.md#自定义比较函数)
@@ -42,49 +56,6 @@ std::map<std::string, int> map;
 ### 共同方法
 
 有关所有关联容器都有的方法，请参考[关联容器的共同方法](../README.md#共同方法)
-
-### 访问元素
-
-有两种方法可以访问元素
-
-- 使用 `[]` 操作符
-- 使用 `at()` 方法
-
-#### 使用 `[]` 操作符
-
-```cpp
-map.insert({"key", 100});
-std::cout << map["key"] << "\n";
-```
-
-#### 使用 `at()` 方法
-
-相比 `[]` 操作符，使用 `at()` 方法时未找到键时会抛出 `std::out_of_range` 异常
-
-所以推荐配合 `try-catch` 块使用
-
-```cpp
-try
-{
-    std::cout << map.at("key") << "\n";
-}
-catch (const std::out_of_range& e)
-{
-    std::cout << "Key not found: " << e.what() << "\n";
-}
-```
-
-#### `insert_or_assign()` 方法
-
-在 C++17 中，`std::map` 提供了 `insert_or_assign()` 方法，用于插入元素或替换元素
-
-```cpp
-map.insert_or_assign("key", 100);
-```
-
-- 如果键已经存在，会替换元素
-- 如果键不存在，会插入元素
-- 返回值为插入或替换后的迭代器
 
 ### `emplace()` 方法
 
@@ -123,7 +94,7 @@ class Employee {
 ```
 
 ```cpp
-std::map<int, Employee> emp_map;
+std::multimap<int, Employee> emp_map;
 Employee emp1("John Doe", 1);
 emp_map.insert({1, emp1});
 emp_map.insert({2, std::move(emp1)});
@@ -149,17 +120,10 @@ Constructor called # 这个是使用 emplace() 方法构造的对象的构造函
 
 使用 `emplace()` 方法时效率最高，因为不需要拷贝和移动对象
 
-#### `try_emplace()` 方法
-
-在 C++17 中引入了 `try_emplace()` 方法
-
-`try_emplace()` 方法与 `emplace()` 方法类似，但不需要配合 `std::piecewise_construct` 和 `std::forward_as_tuple` 来构造对象
-
-同时 `try_emplace()` 提供了强异常安全保证，即使插入失败，参数也保持原样可用，而 `emplace()` 在失败时，右值引用参数可能已经被消耗
-
-```cpp
-emp_map.try_emplace(4, "Alice", 3);
-```
+> [!WARNING]
+> `std::multimap` 没有 `try_emplace()` 方法
+> 因为 `try_emplace` 的目的是仅在键不存在时有条件地插入元素，从而避免在插入失败时销毁参数资源
+> 而 `std::multimap` 允许多个相同的键
 
 ### `emplace_hint()` 方法
 
@@ -168,12 +132,12 @@ emp_map.try_emplace(4, "Alice", 3);
 它会向容器中尽可能接近紧接指定迭代器之前的位置插入新元素
 
 ```cpp
-auto it = map.find("key");
-if (it != map.end())
+auto it = emp_map.find("key");
+if (it != emp_map.end())
 {
-    map.emplace_hint(it, std::piecewise_construct,
-        std::forward_as_tuple(5),
-        std::forward_as_tuple("Bob", 4));
+    emp_map.emplace_hint(it, std::piecewise_construct,
+        std::forward_as_tuple(4),
+        std::forward_as_tuple("James May", 3));
 }
 ```
 
@@ -181,8 +145,16 @@ if (it != map.end())
 
 使用 `count()` 方法可以检查映射中有多少个键与给定键相同
 
-- 在 `std::map` 中只可能返回 0 或 1
-- 所以在 `std::map` 更推荐使用 `contains()` (C++20) 方法
+```cpp
+multi_map.insert({1, "Alice"});
+multi_map.insert({1, "Bob"});
+multi_map.insert({1, "Jame"});
+multi_map.insert({2, "Charlie"});
+multi_map.insert({2, "David"});
+
+std::cout << "Count of key 1: " << multi_map.count(1) << std::endl; // 输出 3
+std::cout << "Count of key 2: " << multi_map.count(2) << std::endl; // 输出 1
+```
 
 ## 迭代器失效
 
