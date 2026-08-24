@@ -39,21 +39,9 @@ std::map<std::string, int> map;
 
 有关比较函数的详细信息，请参考[自定义比较函数](../README.md#自定义比较函数)
 
-### 检查是否为空
+### 共同方法
 
-使用 `empty()` 方法检查映射是否为空
-
-```cpp
-std::cout << (map.empty() ? "Empty" : "Not empty") << "\n";
-```
-
-### 获取大小
-
-使用 `size()` 方法获取映射的大小
-
-```cpp
-std::cout << "Size: " << map.size() << "\n";
-```
+有关所有关联容器都有的方法，请参考[关联容器的共同方法](../README.md#共同方法)
 
 ### 访问元素
 
@@ -86,34 +74,6 @@ catch (const std::out_of_range& e)
 }
 ```
 
-### 插入元素
-
-使用 `insert()` 方法插入元素
-
-相比序列容器的 [`insert()` 方法](../../序列容器/README.md#insert-方法)，映射的 `insert()` 方法返回一个迭代器和一个布尔值 (使用 `std::pair` 包裹)
-
-具体的返回值类型如下
-
-```cpp
-std::pair<iterator, bool>
-```
-
-```cpp
-auto result = map.insert({"key", 100});
-if (result.second)
-{
-    std::cout << "Key inserted successfully\n";
-}
-else
-{
-    std::cout << "Key already exists\n";
-}
-```
-
-- 如果插入成功，返回的迭代器有效且布尔值为 `true`
-- 如果插入失败，返回的迭代器无效且布尔值为 `false`
-    - 通常是因为键已经存在
-
 #### `insert_or_assign()` 方法
 
 在 C++17 中，`std::map` 提供了 `insert_or_assign()` 方法，用于插入元素或替换元素
@@ -128,7 +88,7 @@ map.insert_or_assign("key", 100);
 
 ### `emplace()` 方法
 
-`emplace()` 系列相比 `insert()` 方法可以避免不必要的拷贝和移动操作
+`emplace()` 系列相比 [`insert()` 方法](../README.md#插入元素)可以避免不必要的拷贝和移动操作
 
 这在配合对象构造函数时非常有用
 
@@ -189,16 +149,6 @@ Constructor called # 这个是使用 emplace() 方法构造的对象的构造函
 
 使用 `emplace()` 方法时效率最高，因为不需要拷贝和移动对象
 
-#### 使用 `try_emplace()` 方法
-
-在 C++17 中引入了 `try_emplace()` 方法
-
-`try_emplace()` 方法与 `emplace()` 方法类似，但不需要配合 `std::piecewise_construct` 和 `std::forward_as_tuple` 来构造对象
-
-```cpp
-emp_map.try_emplace(4, "Alice", 3);
-```
-
 ### `emplace_hint()` 方法
 
 `emplace_hint()` 方法与 `emplace()` 方法类似，但需要提供一个迭代器作为提示
@@ -213,133 +163,14 @@ if (it != map.end())
 }
 ```
 
-### 删除元素
+#### `try_emplace()` 方法
 
-使用 `erase()` 方法删除元素
+在 C++17 中引入了 `try_emplace()` 方法
 
-```cpp
-map.erase("key");
-```
-
-### 交换两个映射
-
-使用 `swap()` 方法交换两个映射
+`try_emplace()` 方法与 `emplace()` 方法类似，但不需要配合 `std::piecewise_construct` 和 `std::forward_as_tuple` 来构造对象
 
 ```cpp
-std::map<std::string, int> map1 = {{"key", 100}, {"key2", 200}};
-std::map<std::string, int> map2 = {{"key3", 300}, {"key4", 400}};
-map1.swap(map2);
-```
-
-### 查找元素
-
-使用 `find()` 方法查找元素
-
-```cpp
-auto it = map.find("key");
-if (it != map.end())
-{
-    std::cout << "Key found: " << it->first << " " << it->second << "\n";
-}
-else
-{
-    std::cout << "Key not found\n";
-}
-```
-
-- 如果没有找到，返回的迭代器为 `map.end()`
-
-### 带范围查找
-
-有三种带范围查找的方法
-
-- `lower_bound()`: 返回指向首个不小于 给定键的元素的迭代器
-- `upper_bound()`: 返回指向首个大于 给定键的元素的迭代器
-- `equal_range()`: 返回匹配特定键的元素范围
-
-#### `lower_bound()` 方法
-
-使用 `lower_bound()` 方法返回指向首个不小于 (即大于或等于) 给定键的元素的迭代器
-
-```cpp
-std::map<int, std::string> numbers = {
-    {0, "zero"},
-    {1, "one"},
-    {2, "two"},
-    {3, "three"},
-    {4, "four"}
-};
-
-auto it = numbers.lower_bound(2);
-std::cout << "Lower bound: " << it->first << " " << it->second << "\n";
-```
-
-此时会输出
-
-```bash
-Lower bound: 2 two
-```
-
-#### `upper_bound()` 方法
-
-使用 `upper_bound()` 方法返回指向首个大于 给定键的元素的迭代器
-
-```cpp
-auto it = numbers.upper_bound(2);
-std::cout << "Upper bound: " << it->first << " " << it->second << "\n";
-```
-
-此时会输出
-
-```bash
-Upper bound: 3 three
-```
-
-#### `equal_range()` 方法
-
-使用 `equal_range()` 方法返回容器中所有拥有给定键的元素的范围
-
-一个指向首个不小于给定键的元素的迭代器，另一个指向首个大于给定键的元素的迭代器
-
-相当于 `lower_bound()` 和 `upper_bound()` 的结合体
-
-```cpp
-auto range = numbers.equal_range(2);
-std::cout << "Lower bound: " << range.first->first << " " << range.first->second << "\n";
-std::cout << "Upper bound: " << range.second->first << " " << range.second->second << "\n";
-```
-
-此时会输出
-
-```bash
-Lower bound: 2 two
-Upper bound: 3 three
-```
-
-### 检查容器是否含有带特定键的元素
-
-使用 `contains()` (C++20) 方法检查容器是否含有带特定键的元素
-
-```cpp
-if (map.contains("key"))
-{
-    std::cout << "Key found\n";
-}
-else
-{
-    std::cout << "Key not found\n";
-}
-```
-
-### 遍历映射
-
-由于映射实现了 `begin()` 和 `end()` 方法，所以可以使用 `for` 循环遍历映射
-
-```cpp
-for (const auto& pair : map)
-{
-    std::cout << "{" << pair.first << ", " << pair.second << "}\n";
-}
+emp_map.try_emplace(4, "Alice", 3);
 ```
 
 ## 迭代器失效
