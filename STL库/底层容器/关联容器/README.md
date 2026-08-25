@@ -8,7 +8,7 @@
 
 - [`map`](映射/README.md): 映射
 - [`multimap`](多重映射/README.md): 多重映射
-- `set`: 集合
+- [`set`](集合/README.md): 集合
 - `multiset`: 多重集合
 
 ## 自定义比较函数
