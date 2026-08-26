@@ -1,8 +1,17 @@
-# 集合
+# 多重集合
 
-集合 (`std::set`) 是关联容器，它存储唯一元素，且元素是无序的
+多重集合 (`std::multiset`) 是关联容器
 
-集合通常用于需要快速查找、插入和删除元素的场景
+相比 `std::set`，`std::multiset` 允许存储重复的元素
+
+## 与 `std::set` 的区别
+
+| 特征 | `std::set` | `std::multiset` |
+| :--: | :-------: | :-------------: |
+| 键唯一性 | 是 | 否 |
+| `insert()` 行为 | 键存在时插入失败 | 插入新键 |
+| `count()` 行为 | 只可能返回 0 或 1 | 返回键出现的次数 |
+| `erase()` 行为 | 删除唯一键 | 删除所有键 |
 
 ## 语法
 
@@ -15,9 +24,9 @@
 ### 声明
 
 ```cpp
-std::set<元素类型> 集合名;
-std::set<元素类型, 比较函数> 集合名;
-std::set<元素类型> 集合名 = {
+std::multiset<元素类型> 集合名;
+std::multiset<元素类型, 比较函数> 集合名;
+std::multiset<元素类型> 集合名 = {
     值1, 值2, 值3, ...
 };
 ```
@@ -27,10 +36,10 @@ std::set<元素类型> 集合名 = {
 
 ## 示例
 
-现在声明一个集合
+现在声明一个多重集合
 
 ```cpp
-std::set<int> set1 = {1, 2, 3, 4, 5};
+std::multiset<int> multi_set = {1, 2, 3, 4, 5};
 ```
 
 ### 自定义比较函数
@@ -75,7 +84,7 @@ class Employee {
             std::cout << "Move constructor called\n";
         }
 
-        bool operator<(const Employee& other) const // set需要重载 `<` 运算符
+        bool operator<(const Employee& other) const // multiset 需要重载 `<` 运算符
         {
             return age < other.age;
         }
@@ -83,13 +92,13 @@ class Employee {
 ```
 
 ```cpp
-std::set<Employee> employees;
+std::multiset<Employee> employees;
 Employee alice("Alice", 30);
 employees.insert(std::move(alice));
 employees.emplace("Alice", 30);
 ```
 
-- 这里提供 `operator<` 运算符重载，是因为 `std::set` 中的元素必须是可比较的
+- 这里提供 `operator<` 运算符重载，是因为 `std::multiset` 中的元素必须是可比较的
     - 也可以提供[自定义比较函数](#自定义比较函数)
 
 通过输出可以看到
@@ -118,14 +127,17 @@ if (it != employees.end())
 
 ### `count()` 方法
 
-使用 `count()` 方法可以检查集合中有多少个键与给定键相同
-
-- 在 `std::set` 中只可能返回 0 或 1
-- 所以在 `std::set` 更推荐使用 `contains()` (C++20) 方法
+使用 `count()` 方法可以返回给定元素在多重集合中出现的次数
 
 ```cpp
-std::cout << set1.count(3) << std::endl; // 输出 1
-std::cout << set1.count(6) << std::endl; // 输出 0
+multi_set.insert(1);
+multi_set.insert(1);
+multi_set.insert(1);
+multi_set.insert(2);
+multi_set.insert(2);
+
+std::cout << multi_set.count(1) << std::endl; // 输出 3
+std::cout << multi_set.count(2) << std::endl; // 输出 2
 ```
 
 ## 迭代器失效

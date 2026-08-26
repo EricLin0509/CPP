@@ -2,14 +2,18 @@
 
 ## 定义
 
-关联容器是 C++ STL 库中的一种容器，它存储键值对，并且键是唯一的
+关联容器是 C++ STL 库中的一种容器，基于键的排序进行元素组织
+
+`map`和 `multimap` 将键映射到值
+
+而 `set` 和 `multiset` 直接存储键作为元素
 
 ## 关联容器类型
 
 - [`map`](映射/README.md): 映射
 - [`multimap`](多重映射/README.md): 多重映射
 - [`set`](集合/README.md): 集合
-- `multiset`: 多重集合
+- [`multiset`](多重集合/README.md): 多重集合
 
 ## 自定义比较函数
 
@@ -20,8 +24,8 @@
 这里需要重写 `operator()` (函数调用运算符)，该方法原型如下
 
 ```cpp
-template <class Key, class Value>
-bool operator()(const Key& x, const Value& y) const;
+template <class Key>
+bool operator()(const Key& lhs, const Key& rhs) const;
 ```
 
 这里比较两个字符串长度
