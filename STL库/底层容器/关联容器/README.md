@@ -67,6 +67,7 @@ std::map<std::string, int, decltype(cmp)> map(cmp);
 - [`lower_bound()`](#lower_bound-方法) - 返回指向首个不小于给定键的元素的迭代器
 - [`upper_bound()`](#upper_bound-方法) - 返回指向首个大于给定键的元素的迭代器
 - [`equal_range()`](#equal_range-方法) - 返回匹配特定键的元素范围
+- [`contains()`](#检查容器是否含有带特定键的元素) - 检查容器是否含有带特定键的元素 (C++20)
 
 这里以 `std::map` 为例，其他关联容器类型类似
 
