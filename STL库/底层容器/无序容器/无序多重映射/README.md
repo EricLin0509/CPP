@@ -1,8 +1,19 @@
-# 无序映射
+# 无序多重映射
 
-无序映射 (`std::unordered_map`) 是无序容器的一种，它存储键值对，键是唯一的，值可以重复
+无序多重映射 (`std::unordered_multimap`) 是 C++ 标准库中的一个容器，用于存储键值对
 
-相比 `std::map`, `std::unordered_map` 的底层实现是哈希表，因此查找、插入和删除操作的时间复杂度是O(1)
+相比 `std::unordered_map`，`std::unordered_multimap` 允许一个键对应多个值
+
+## 与 `std::unordered_map` 的区别
+
+| 特征 | `std::unordered_map` | `std::unordered_multimap` |
+| :--: | :-----------------: | :-----------------------: |
+| 键唯一性 | 是 | 否 |
+| 键值对数量 | 一个键对应一个值 | 一个键对应多个值 |
+| 索引操作符 `[]` | 支持 | 不支持 |
+| `insert()` 行为 | 键存在时插入失败 | 插入新键值对 |
+| `count()` 行为 | 只可能返回 0 或 1 | 返回键对应的值的数量 |
+| `erase()` 行为 | 删除键对应的唯一值 | 删除键对应的所有值 |
 
 ## 语法
 
@@ -15,10 +26,10 @@
 ### 声明
 
 ```cpp
-std::unordered_map<键类型, 值类型> 映射名;
-std::unordered_map<键类型, 值类型, 哈希函数> 映射名;
-std::unordered_map<键类型, 值类型, 哈希函数, 相等比较函数> 映射名;
-std::unordered_map<键类型, 值类型> 映射名 = {
+std::unordered_multimap<键类型, 值类型> 映射名;
+std::unordered_multimap<键类型, 值类型, 哈希函数> 映射名;
+std::unordered_multimap<键类型, 值类型, 哈希函数, 相等比较函数> 映射名;
+std::unordered_multimap<键类型, 值类型> 映射名 = {
     {键1, 值1},
     {键2, 值2},
     // ...
@@ -26,14 +37,14 @@ std::unordered_map<键类型, 值类型> 映射名 = {
 ```
 
 - 哈希函数：用于生成键的哈希值，如果未指定，默认使用 `std::hash` 函数
-- 相等比较函数：用于比较键是否相等，如果未指定，默认使用 `std::equal_to` 函数
+- 相等比较函数：用于比较键的是否相等，如果未指定，默认使用 `std::equal_to` 函数
 
 ## 示例
 
-现在声明一个 `std::unordered_map`，存储键为字符串，值为整数的映射
+现在声明一个 `std::unordered_multimap`，存储键为字符串，值为整数的映射
 
 ```cpp
-std::unordered_map<std::string, int> unordered_map;
+std::unordered_multimap<std::string, int> unordered_multimap;
 ```
 
 ### 自定义哈希函数
@@ -47,49 +58,6 @@ std::unordered_map<std::string, int> unordered_map;
 ### 共同方法
 
 有关所有无序容器都有的方法，请参考[无序容器的共同方法](../README.md#共同方法)
-
-### 访问元素
-
-有两种方法可以访问元素
-
-- 使用 `[]` 操作符
-- 使用 `at()` 方法
-
-#### 使用 `[]` 操作符
-
-```cpp
-unordered_map.insert({"key", 100});
-std::cout << unordered_map["key"] << "\n";
-```
-
-#### 使用 `at()` 方法
-
-相比 `[]` 操作符，使用 `at()` 方法时未找到键时会抛出 `std::out_of_range` 异常
-
-所以推荐配合 `try-catch` 块使用
-
-```cpp
-try
-{
-    std::cout << unordered_map.at("key") << "\n";
-}
-catch (const std::out_of_range& e)
-{
-    std::cout << "Key not found: " << e.what() << "\n";
-}
-```
-
-#### `insert_or_assign()` 方法
-
-在 C++17 中，`std::unordered_map` 提供了 `insert_or_assign()` 方法，用于插入元素或替换元素
-
-```cpp
-unordered_map.insert_or_assign("key", 100);
-```
-
-- 如果键已经存在，会替换元素
-- 如果键不存在，会插入元素
-- 返回值为插入或替换后的迭代器
 
 ### `emplace()` 方法
 
@@ -128,7 +96,7 @@ class Employee {
 ```
 
 ```cpp
-std::unordered_map<int, Employee> employees;
+std::unordered_multimap<int, Employee> employees;
 Employee emp1("John Doe", 1);
 employees.insert({1, emp1});
 employees.insert({2, std::move(emp1)});
@@ -154,23 +122,10 @@ Constructor called # 这个是使用 emplace() 方法构造的对象的构造函
 
 使用 `emplace()` 方法时效率最高，因为不需要拷贝和移动对象
 
-#### `try_emplace()` 方法
-
-在 C++17 中引入了 `try_emplace()` 方法
-
-`try_emplace()` 方法与 `emplace()` 方法类似，但不需要配合 `std::piecewise_construct` 和 `std::forward_as_tuple` 来构造对象
-
-同时 `try_emplace()` 提供了强异常安全保证，即使插入失败，参数也保持原样可用，而 `emplace()` 在失败时，右值引用参数可能已经被消耗
-
-```cpp
-const char *name = "Alice";
-auto result = employees.try_emplace(4, name, 3);
-if (!result.second)
-{
-    // 插入失败，但 name 未被消耗，仍可继续使用
-    std::cout << "Insertion failed, name is still: " << name << "\n";
-}
-```
+> [!WARNING]
+> `std::unordered_multimap` 没有 `try_emplace()` 方法
+> 因为 `try_emplace` 的目的是仅在键不存在时有条件地插入元素，从而避免在插入失败时销毁参数资源
+> 而 `std::unordered_multimap` 允许多个相同的键
 
 ### `emplace_hint()` 方法
 
@@ -192,8 +147,18 @@ if (it != employees.end())
 
 使用 `count()` 方法可以检查映射中有多少个键与给定键相同
 
-- 在 `std::unordered_map` 中只可能返回 0 或 1
-- 所以在 `std::unordered_map` 更推荐使用 `contains()` (C++20) 方法
+```cpp
+std::unordered_multimap<int, std::string> map;
+map.insert({1, "Key1"});
+map.insert({1, "Key1"});
+map.insert({1, "Key1"});
+map.insert({2, "Key2"});
+map.insert({2, "Key2"});
+
+std::cout << "Key 1 appears " << map.count(1) << " times\n"; // 输出: Key 1 appears 3 times
+std::cout << "Key 2 appears " << map.count(2) << " times\n"; // 输出: Key 2 appears 2 times
+```
+
 
 ### 桶接口
 
@@ -206,14 +171,3 @@ if (it != employees.end())
 ## 迭代器失效
 
 有关迭代器失效的描述，请参考[迭代器失效](../../README.md#迭代器失效)
-
-### 失效规则
-
-| 操作 | 失效规则 |
-| :--: | :-----: |
-| 所有只读操作 | 永远不会失效 |
-| `swap()` 方法 | 永远不会失效 |
-| `clear()`、`operator=` 方法 | 始终失效 |
-| `rehash()`、`reserve()` 方法 | 始终失效 |
-| `insert()`、`emplace()`、`emplace_hint()`、`operator[]` 方法 | 如果发生重新哈希则迭代器失效 |
-| `erase()` 方法 | 只有指向被擦除元素的迭代器会失效 |

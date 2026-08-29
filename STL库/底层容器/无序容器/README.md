@@ -32,7 +32,7 @@
 - `unordered_set`：无序集合
 - `unordered_multiset`：无序多重集合
 - [`unordered_map`](无序映射/README.md)：无序映射
-- `unordered_multimap`：无序多重映射
+- [`unordered_multimap`](无序多重映射/README.md)：无序多重映射
 
 ## 自定义哈希函数
 
