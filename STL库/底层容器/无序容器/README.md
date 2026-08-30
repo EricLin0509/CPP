@@ -65,10 +65,26 @@ struct HashString {
 ```
 
 - 这里需要使用结构体包裹哈希函数，因为哈希函数参数模板需要一个类型参数
-- 这里的哈希函数需要非常好的唯一性，否则比较容易发生哈希碰撞，从而影响插入和删除操作
+- 这里的哈希函数的算法需要非常好的唯一性，否则比较容易发生哈希碰撞，从而影响插入和删除操作
+    - 例如这里提供的哈希算法就是一个反面教材，非常容易发生哈希碰撞
+    - **原因**：当字符串长度超过 `sizeof(size_t)` 时，高位字符会被左移溢出丢失；且短字符串（如 "ab" 和 "ba"）容易产生相同哈希值
+
+以下是一个更合理的哈希函数
 
 ```cpp
-std::unordered_map<std::string, int, HashString> unordered_map;
+struct BetterHashString {
+    size_t operator()(const std::string& key) const {
+        size_t hash = 0;
+        for (char c : key) {
+            hash = hash * 31 + c;  // 类似 Java String.hashCode()
+        }
+        return hash;
+    }
+};
+```
+
+```cpp
+std::unordered_map<std::string, int, BetterHashString> unordered_map;
 ```
 
 ### 适用 lambda 表达式
