@@ -84,9 +84,11 @@ class Employee {
 
 ```cpp
 std::set<Employee> employees;
-Employee alice("Alice", 30);
-employees.insert(std::move(alice));
-employees.emplace("Alice", 30);
+Employee emp1("John Doe", 1);
+Employee emp2("James May", 2);
+employees.insert(emp1);
+employees.insert(std::move(emp2));
+employees.emplace("Jane Doe", 3);
 ```
 
 - 这里提供 `operator<` 运算符重载，是因为 `std::set` 中的元素必须是可比较的
@@ -95,7 +97,9 @@ employees.emplace("Alice", 30);
 通过输出可以看到
 
 ```bash
-Constructor called # 这个是 alice 的构造函数
+Constructor called # 这个是 emp1 的构造函数
+Constructor called # 这个是 emp2 的构造函数
+Copy constructor called
 Move constructor called
 Constructor called # 这个是使用 emplace() 方法构造的对象的构造函数
 ```
