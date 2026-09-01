@@ -1,8 +1,8 @@
-# 无序集合
+# 无序多重集合
 
-无序集合 (`std::unordered_set`) 是无序容器的一种，它存储唯一元素，且元素是无序的
+无序多重集合 (`std::unordered_multiset`) 是无序容器的一种，它允许存储多个相同的元素，且不同元素是之间是无序的
 
-相比 `std::set`, `std::unordered_set` 的底层实现是哈希表，因此查找、插入和删除操作的时间复杂度是O(1)
+相比 `std::unordered_set`，`std::unordered_multiset` 允许存储多个相同的元素
 
 ## 语法
 
@@ -15,10 +15,10 @@
 ### 声明
 
 ```cpp
-std::unordered_set<元素类型> 集合名;
-std::unordered_set<元素类型, 哈希函数> 集合名;
-std::unordered_set<元素类型, 哈希函数, 相等比较函数> 集合名;
-std::unordered_set<元素类型> 集合名 = {元素1, 元素2, 元素3, ...};
+std::unordered_multiset<元素类型> 集合名;
+std::unordered_multiset<元素类型, 哈希函数> 集合名;
+std::unordered_multiset<元素类型, 哈希函数, 相等比较函数> 集合名;
+std::unordered_multiset<元素类型> 集合名 = {元素1, 元素2, 元素3, ...};
 ```
 
 - 哈希函数：用于生成键的哈希值，如果未指定，默认使用 `std::hash` 函数
@@ -26,10 +26,10 @@ std::unordered_set<元素类型> 集合名 = {元素1, 元素2, 元素3, ...};
 
 ## 示例
 
-现在声明一个 `std::unordered_set`，存储一些字符串
+现在声明一个 `std::unordered_multiset`，存储一些字符串
 
 ```cpp
-std::unordered_set<std::string> unordered_set;
+std::unordered_multiset<std::string> unordered_multiset;
 ```
 
 ### 自定义哈希函数
@@ -77,7 +77,7 @@ class Employee {
 
             std::cout << "Move constructor called\n";
         }
-        bool operator==(const Employee& other) const // 使用 `unordered_set` 需要的元素必须实现 `operator==` 方法
+        bool operator==(const Employee& other) const // 使用 `unordered_multiset` 需要的元素必须实现 `operator==` 方法
         {
             return this->name == other.name && this->age == other.age;
         }
@@ -99,24 +99,22 @@ namespace std {
 ```
 
 ```cpp
-std::unordered_set<Employee> employees;
+std::unordered_multiset<Employee> employees;
 Employee emp1("John Doe", 1);
-Employee emp2("James May", 2);
 employees.insert(emp1);
-employees.insert(std::move(emp2));
+employees.insert(std::move(emp1));
 employees.emplace("Jane Doe", 3);
 ```
 
-- 这里提供特化的 `std::hash<Employee>`，是因为 `std::unordered_set` 需要先计算哈希值，才能进行插入操作
+- 这里提供特化的 `std::hash<Employee>`，是因为 `std::unordered_multiset` 需要先计算哈希值，才能进行插入操作
     - 也可以提供[自定义哈希函数](#自定义哈希函数)
-- 这里提供 `operator==` 运算符重载，是因为 `std::unordered_set` 还需要额外处理哈希冲突
+- 这里提供 `operator==` 运算符重载，是因为 `std::unordered_multiset` 还需要额外处理哈希冲突
     - 也可以提供[自定义相等比较函数](#自定义相等比较函数)
 
 通过输出可以看到
 
 ```bash
 Constructor called # 这个是 emp1 的构造函数
-Constructor called # 这个是 emp2 的构造函数
 Copy constructor called
 Move constructor called
 Constructor called # 这个是使用 emplace() 方法构造的对象的构造函数
@@ -140,8 +138,16 @@ if (it != employees.end())
 
 使用 `count()` 方法可以检查集合中有多少个元素与给定值相同
 
-- 在 `std::unordered_set` 中只可能返回 0 或 1
-- 所以在 `std::unordered_set` 更推荐使用 `contains()` (C++20) 方法
+```cpp
+std::unordered_multiset<std::string> multiset;
+multiset.insert("apple");
+multiset.insert("apple");
+multiset.insert("apple");
+multiset.insert("banana");
+multiset.insert("banana");
+std::cout << multiset.count("apple") << std::endl; // 输出 3
+std::cout << multiset.count("banana") << std::endl; // 输出 2
+```
 
 ### 桶接口
 
