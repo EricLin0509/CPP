@@ -90,48 +90,14 @@ double result2 = max(c, d); // result = 20.5
 std::cout << "Max of " << c << " and " << d << " is " << result2 << "\n";
 ```
 
-现在通过 `objdump` 命令查看程序的函数符号表
+### 底层原理
 
-```bash
-objdump -t function_template | grep max
-```
-
-输出结果如下
-
-```
-00000000000012fa  w    F .text  0000000000000028              _Z3maxIdET_S0_S0_
-00000000000012de  w    F .text  000000000000001c              _Z3maxIiET_S0_S0_
-```
-
-- `_Z3maxIiET_S0_S0_` 对应于 `int` 版本的 `max` 函数
-- `_Z3maxIdET_S0_S0_` 对应于 `double` 版本的 `max` 函数
+有关底层原理的详细信息，请参考[底层原理](../README.md#底层原理)
 
 ### 显式指定参数类型
 
-有时候编译器可能无法自动推导出实际的参数类型，这时可以手动指定参数类型
-
-```cpp
-int result1 = max<int>(a, b); // result = 20
-double result2 = max<double>(c, d); // result = 20.5
-```
+有关显式指定参数类型，请参考[显式指定参数类型](../README.md#显式指定参数类型)
 
 ### 匹配多个参数
 
-函数模板也可以匹配多个参数。使用 `,` 分隔多个参数类型
-
-```cpp
-template <typename T1, typename T2>
-size_t max_size(T1 a, T2 b)
-{
-    return sizeof(a) > sizeof(b) ? sizeof(a) : sizeof(b);
-}
-```
-
-```cpp
-int e = 10;
-double f = 20.5;
-size_t result = max_size(e, f); // result = 8
-
-double g = 10.5;
-size_t result2 = max_size(g, f); // result = 8
-```
+有关匹配多个参数，请参考[匹配多个参数](../README.md#匹配多个参数)
