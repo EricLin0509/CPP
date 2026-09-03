@@ -23,7 +23,7 @@
 优先队列的适用场景：
 - 当紧急程度或重要性比到达顺序更重要时
     - Dijkstra 最短路径算法
-    - 任务调度
+    - 任务调度 (示例可以看我的 [`web-pong-game` 项目](https://github.com/EricLin0509/web-pong-game/blob/main/game/scheduler.cpp))
 
 ## 语法
 
