@@ -11,6 +11,8 @@
 - [`list`](双向链表/README.md)：双向链表
 - [`forward_list`](单向链表/README.md)：单向链表
 - [`array`](数组/README.md)：固定大小数组
+- `implace_vector`：可变大小数组 (C++26新增)
+- `hive`: 蜂巢 (C++26新增)
 
 ## 共同方法
 

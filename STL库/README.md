@@ -14,6 +14,8 @@ STL (Standard Template Library) 是 C++ 标准库的一部分，提供了许多�
   - `list`：双向链表
   - `forward_list`：单向链表
   - `array`：固定大小数组
+  - `implace_vector`：可变大小数组 (C++26新增)
+  - `hive`: 蜂巢容器 (C++26新增)
 
 - **关联容器**
   - `set`：集合
