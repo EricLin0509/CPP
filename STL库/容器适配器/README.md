@@ -16,4 +16,4 @@
 - [`queue`](队列/README.md)：队列
 - [`priority_queue`](优先队列/README.md)：优先队列
 - [`flat_map`](平铺映射/README.md): 平铺映射 (C++23新增)
-- `flat_set`: 平铺集合 (C++23新增)
+- [`flat_set`](平铺集合/README.md): 平铺集合 (C++23新增)
