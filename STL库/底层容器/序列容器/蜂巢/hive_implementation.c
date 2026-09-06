@@ -33,8 +33,13 @@ HiveIterator *iterator_create(void)
 {
     HiveIterator *it = malloc(sizeof(HiveIterator));
     if (it == NULL)
+    {
         perror("malloc");
+        return NULL;
+    }
 
+    it->block = NULL;
+    it->index = 0;
     return it;
 }
 
@@ -254,35 +259,33 @@ static void insert_update_skipfield(HiveIterator *it)
     if (!it || !it->block) return;
 
     size_t i = it->index;
-    uint8_t total_len = it->block->skipfield[i]; // 当前空洞长度（假定插入发生在 head 或 tail）
+    uint8_t total_len = it->block->skipfield[i]; // 当前空洞长度 (假定插入发生在 head 或 tail)
     
-    // 如果插入前这里 skipfield 记录了长度 L (L > 0)
-    if (total_len > 0)
+    if (total_len == 0) return;
+
+    // 假设当前插入点 i 是空洞的 head
+    size_t head = i;
+    size_t tail = i + total_len - 1;
+
+    // 算出左侧和右侧残留空洞的长度
+    size_t left_len  = i - head; // i 之前剩余的空洞长度 (若在 head 插入则为 0)
+    size_t right_len = tail - i; // i 之后剩余的空洞长度
+
+    // 槽位 i 被占用，Skipfield 清零
+    it->block->skipfield[i] = 0;
+
+    /* 左边空洞长度 > 0，更新 Skipfield */
+    if (left_len > 0)
     {
-        // 假设当前插入点 i 是空洞的 head
-        size_t head = i;
-        size_t tail = i + total_len - 1;
+        it->block->skipfield[i - 1] = (uint8_t)left_len;
+        it->block->skipfield[head] = (uint8_t)left_len;
+    }
 
-        // 算出左侧和右侧残留空洞的长度
-        size_t left_len  = i - head; // i 之前剩余的空洞长度 (若在 head 插入则为 0)
-        size_t right_len = tail - i; // i 之后剩余的空洞长度
-
-        // 1. 槽位 i 被占用，Skipfield 清零
-        it->block->skipfield[i] = 0;
-
-        /* 左边空洞长度 > 0，更新 Skipfield */
-        if (left_len > 0)
-        {
-            it->block->skipfield[i - 1] = (uint8_t)left_len;
-            it->block->skipfield[head] = (uint8_t)left_len;
-        }
-
-        /* 右边空洞长度 > 0，更新 Skipfield */
-        if (right_len > 0)
-        {
-            it->block->skipfield[i + 1] = (uint8_t)right_len;
-            it->block->skipfield[tail] = (uint8_t)right_len;
-        }
+    /* 右边空洞长度 > 0，更新 Skipfield */
+    if (right_len > 0)
+    {
+        it->block->skipfield[i + 1] = (uint8_t)right_len;
+        it->block->skipfield[tail] = (uint8_t)right_len;
     }
 }
 
@@ -296,7 +299,7 @@ HiveIterator *hive_insert(Hive *hive, const HiveIterator *it, const char c)
     curr->block = it->block;
     curr->index = it->index;
 
-    // 1. 在当前块内找个空洞（从当前位置往后看，没有就放弃）
+    /* 在当前块内找个空洞 */
     while (curr->index < BLOCK_SIZE)
     {
         if (curr->block->skipfield[curr->index] > 0)
@@ -304,7 +307,7 @@ HiveIterator *hive_insert(Hive *hive, const HiveIterator *it, const char c)
             curr->block->data[curr->index] = c;
             curr->block->element_count++;
 
-            // 更新 skipfield（拆分空洞）
+            // 更新 skipfield (拆分空洞)
             insert_update_skipfield(curr);
 
             curr->block->ref_count++; // 返回的迭代器持有引用
@@ -313,8 +316,8 @@ HiveIterator *hive_insert(Hive *hive, const HiveIterator *it, const char c)
         curr->index++;
     }
 
-    // 2. 当前块没空洞了（满了），直接在它后面插一个新块！
-    //    因为是无序容器，我们不关心新块插在链表中间还是尾部，只要链接上就行。
+    /* 当前块没空洞了 (满了)，直接在它后面插一个新块！
+       因为是无序容器，我们不关心新块插在链表中间还是尾部，只要链接上就行 */
     Block *new_block = insert_block_after(hive, curr); 
     if (!new_block)
     {
@@ -368,7 +371,7 @@ void hive_erase(Hive *hive, HiveIterator *it)
     it->block = NULL;
 }
 
-void hive_treverse(HiveIterator *it)
+void hive_traverse(HiveIterator *it)
 {
     if (!it || !it->block) return;
 
@@ -377,6 +380,29 @@ void hive_treverse(HiveIterator *it)
         printf("%c", it->block->data[it->index]);
         iterator_next(it);
     }
+}
+
+void clear_hive(Hive *hive)
+{
+    if (!hive) return;
+
+    Block *block = hive->head;
+    while (block)
+    {
+        Block *next = block->next;
+        free(block);
+        block = next;
+    }
+
+    block = hive->recycled_list;
+    while (block)
+    {
+        Block *next = block->next;
+        free(block);
+        block = next;
+    }
+
+    free(hive);
 }
 
 int main(void) {
@@ -415,8 +441,11 @@ int main(void) {
     /* 测试块内空洞影响 */
     hive_erase(hive, test_erase1);
 
-    hive_treverse(it);
+    /* 预期输出: Hllo Wo!dl */
+    hive_traverse(it);
     printf("\n");
+
+    clear_hive(hive); // 清空 Hive
 
     return 0;
 }
