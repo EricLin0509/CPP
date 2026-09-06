@@ -300,6 +300,20 @@ HiveIterator *iterator_create(void)
 }
 ```
 
+### 销毁迭代器
+
+```c
+void iterator_destroy(HiveIterator *it)
+{
+    if (!it) return;
+
+    if (it->block)    
+        it->block->ref_count--; // 释放迭代器所指向的块的引用
+
+    free(it);
+}
+```
+
 ### 找到下一个元素
 
 ```c
@@ -868,6 +882,67 @@ static void insert_update_skipfield(HiveIterator *it)
         it->block->skipfield[i + 1] = (uint8_t)right_len;
         it->block->skipfield[tail] = (uint8_t)right_len;
     }
+}
+```
+
+#### 处理块满的情况
+
+如果当前块满了，需要插入新块
+
+```c
+HiveIterator *hive_insert(Hive *hive, const HiveIterator *it, const char c)
+{
+    if (!hive || !it || !it->block) return NULL;
+
+    HiveIterator *curr = iterator_create();
+    if (!curr) return NULL;
+
+    curr->block = it->block;
+    curr->index = it->index;
+
+    /* 在当前块内找个空洞 */
+    while (curr->index < BLOCK_SIZE)
+    {
+        if (curr->block->skipfield[curr->index] > 0)
+        {
+            curr->block->data[curr->index] = c;
+            curr->block->element_count++;
+
+            // 更新 skipfield (拆分空洞)
+            insert_update_skipfield(curr);
+
+            curr->block->ref_count++; // 返回的迭代器持有引用
+            return curr;
+        }
+        curr->index++;
+    }
+
+    /* 
+      当前块没空洞了 (满了)，直接在它后面插一个新块！
+      因为是无序容器，我们不关心新块插在链表中间还是尾部，只要链接上就行 
+    */
+    Block *new_block = insert_block_after(hive, curr); 
+    if (!new_block)
+    {
+        iterator_destroy(curr);
+        return NULL;
+    }
+
+    // 指向新块，插在索引0
+    curr->block = new_block;
+    curr->index = 0;
+
+    // 插入数据
+    curr->block->data[curr->index] = c;
+    curr->block->element_count++;
+
+    // 初始化新块：0号位有效，1~7全是空洞
+    curr->block->skipfield[0] = 0;
+    curr->block->skipfield[1] = BLOCK_SIZE - 1;
+    curr->block->skipfield[BLOCK_SIZE - 1] = BLOCK_SIZE - 1;
+
+    curr->block->ref_count++; // 返回的迭代器持有引用
+    return curr;
 }
 ```
 
