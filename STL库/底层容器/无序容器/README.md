@@ -10,7 +10,7 @@
 
 | 特征 | 关联容器 | 无序容器 |
 | :--: | :----: | :-----: |
-| 底层实现 | 红黑树 | 哈希表 |
+| 底层实现 | 红黑树 | 哈希表 (`std::hive` 除外) |
 | 元素顺序 | 有序 | 无序 |
 | 平均插入/删除/查找时间复杂度 | O(log n) | O(1) |
 | 最坏插入/删除/查找时间复杂度 | O(log n) | O(n) (因为哈希碰撞) |
@@ -33,9 +33,12 @@
 - [`unordered_multiset`](无序多重集合/README.md)：无序多重集合
 - [`unordered_map`](无序映射/README.md)：无序映射
 - [`unordered_multimap`](无序多重映射/README.md)：无序多重映射
-- `hive`: 蜂巢 (C++26新增)
+- [`hive`](蜂巢/README.md): 蜂巢 (C++26新增)
 
 ## 自定义哈希函数
+
+>[!WARNING]
+> `std::hive` 不支持自定义哈希函数，因为它实现本身不需要
 
 这里以 `unordered_map` 为例
 
@@ -107,6 +110,9 @@ std::unordered_map<std::string, int, decltype(hash)> unordered_map(hash);
 
 ## 自定义相等比较函数
 
+>[!WARNING]
+> `std::hive` 不支持自定义相等比较函数，因为它实现本身不需要
+
 这里以 `unordered_map` 为例
 
 可以使用自定义相等比较函数来改变键的比较方式
@@ -151,10 +157,10 @@ std::unordered_map<std::string, int, std::hash<std::string>, decltype(cmp)> unor
 - [`empty()`](#检查是否为空) - 检查容器是否为空
 - [`size()`](#获取大小) - 获取容器大小
 - [`insert()`](#插入元素) - 插入元素
-- [`find()`](#查找元素) - 查找元素
 - [`erase()`](#删除元素) - 删除元素
 - [`swap()`](#交换两个容器) - 交换两个容器
-- [`contains()`](#检查容器是否含有带特定键的元素) - 检查容器是否含有带特定键的元素 (C++20)
+- [`find()`](#查找元素) - 查找元素 (`std::hive` 不支持)
+- [`contains()`](#检查容器是否含有带特定键的元素) - 检查容器是否含有带特定键的元素 (C++20) (`std::hive` 不支持)
 
 ### 检查是否为空
 
@@ -186,7 +192,7 @@ std::cout << "Container size: " << unordered_map.size() << "\n";
 
 - `std::unordered_map`/`std::unordered_set`: `std::pair<iterator, bool>`
     - 返回一个包含插入位置的迭代器和一个布尔值，表示插入是否成功
-- `std::unordered_multimap`/`std::unordered_multiset`: `iterator`
+- `std::unordered_multimap`/`std::unordered_multiset`/`std::hive`: `iterator`
     - 返回插入位置的迭代器 (因为允许重复键)
 
 #### `std::unordered_map`/`std::unordered_set`
@@ -231,6 +237,9 @@ map1.swap(map2);
 
 ### 查找元素
 
+> [!WARNING]
+> `std::hive` 不支持 `find()` 方法
+
 使用 `find()` 方法查找元素
 
 ```cpp
@@ -249,6 +258,9 @@ else
 - 如果没有找到，返回的迭代器为 `map.end()`
 
 ### 检查容器是否含有带特定键的元素
+
+> [!WARNING]
+> `std::hive` 不支持 `contains()` 方法
 
 使用 `contains()` (C++20) 方法检查容器是否含有带特定键的元素
 
@@ -276,7 +288,7 @@ for (const auto& pair : map)
 
 ## 桶接口
 
-无序容器都使用了桶接口 (因为哈希表是基于桶来实现的)
+除 `std::hive` 以外的无序容器都使用了桶接口 (因为哈希表是基于桶来实现的)
 
 它提供了以下方法
 
