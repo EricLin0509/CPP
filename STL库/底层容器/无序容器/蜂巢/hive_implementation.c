@@ -49,6 +49,10 @@ void iterator_destroy(HiveIterator *it)
     free(it);
 }
 
+/*
+ * 这只是取Hive的头节点首个元素的位置
+ * 并不是取第一个有效元素
+*/
 HiveIterator *iterator_begin(Hive *hive)
 {
     if (!hive) return NULL;
@@ -62,6 +66,10 @@ HiveIterator *iterator_begin(Hive *hive)
     return it;
 }
 
+/* 
+  * 返回Hive的最后一个元素的位置 
+  * 并不是取最后一个有效元素
+*/
 HiveIterator *iterator_end(Hive *hive)
 {
     if (!hive) return NULL;
@@ -94,7 +102,7 @@ void iterator_next(HiveIterator *it)
             continue;
         }
 
-        /* 如果超出当前块，移到下一个块 */
+        /* 如果索引超出当前块，移到下一个块 */
         if (it->index >= BLOCK_SIZE)
         {
             it->block = it->block->next;
@@ -112,6 +120,22 @@ void iterator_next(HiveIterator *it)
     }
 }
 
+void mark_occupied(Block *block, size_t index)
+{
+    if (!block || index >= BLOCK_SIZE) return;
+
+    block->l1_bitset |= (1 << index); // 标记槽位被占用
+    if (block->l1_bitset == 0xFF) // 全满的情况
+        block->l2_bitset = 0;
+}
+
+void mark_free(Block *block, size_t index)
+{
+    if (!block || index >= BLOCK_SIZE) return;
+    block->l1_bitset &= ~(1 << index); // 标记槽位未被占用
+    block->l2_bitset = 1; // 标记块未满
+}
+
 void block_reset(Block *block)
 {
     if (!block) return;
@@ -127,22 +151,6 @@ void block_reset(Block *block)
     block->prev = NULL;
 }
 
-void mark_occupied(Block *block, size_t index)
-{
-    if (!block || index >= BLOCK_SIZE) return;
-
-    block->l1_bitset |= (1 << index); // 标记槽位被占用
-    if (block->l1_bitset == 0xFF) // 全满了
-        block->l2_bitset = 0;
-}
-
-void mark_free(Block *block, size_t index)
-{
-    if (!block || index >= BLOCK_SIZE) return;
-    block->l1_bitset &= ~(1 << index); // 标记槽位未被占用
-    block->l2_bitset = 1; // 标记块未满
-}
-
 Block *create_block(void)
 {
     Block *block = malloc(sizeof(Block));
@@ -153,7 +161,6 @@ Block *create_block(void)
     }
 
     block_reset(block); // 重置块数据
-
     return block;
 }
 
@@ -281,7 +288,12 @@ static void insert_update_skipfield(HiveIterator *it)
     
     if (total_len == 0) return;
 
-    // 由于我们使用 `ctz` 指令查找空洞，所以插入一定是在空洞的的头部 (head)
+    /*
+    * 由于 hive_insert 使用 __builtin_ctz 从头部开始找空洞，
+    * 插入位置一定是空洞的头部，左侧不可能有残留空洞。
+    * 因此只需将原空洞拆分为“插入点”和“右侧残留空洞”，
+    * 并更新右侧空洞的头尾标记。
+    */
     size_t tail = i + total_len - 1;
 
     // 算出右侧残留空洞的长度
@@ -346,6 +358,11 @@ static void erase_update_skipfield(HiveIterator *it)
     size_t left_skip = 0;
     size_t right_skip = 0;
 
+    /* 
+      * 由于迭代器从不落在空洞中间，因此 index-1/index+1 如果是空洞，
+      * 它一定是指向空洞头尾，因此只需读取更新相邻的空洞长度即可
+    */
+
     if (it->index > 0 &&
         !(it->block->l1_bitset & (1 << (it->index - 1)))) // 判断左边是否有空洞
         left_skip = (size_t)it->block->data[it->index - 1];
@@ -354,10 +371,11 @@ static void erase_update_skipfield(HiveIterator *it)
         !(it->block->l1_bitset & (1 << (it->index + 1)))) // 判断右边是否有空洞
         right_skip = (size_t)it->block->data[it->index + 1];
 
+    /* 空洞头尾索引 */
     size_t head = it->index - left_skip;
     size_t tail = it->index + right_skip;
-    uint8_t new_skip = (uint8_t)(left_skip + right_skip + 1);
 
+    uint8_t new_skip = (uint8_t)(left_skip + right_skip + 1);
     it->block->data[head] = (char)new_skip;
     it->block->data[tail] = (char)new_skip;
 }
@@ -383,7 +401,7 @@ void hive_traverse(const HiveIterator *it)
 {
     if (!it || !it->block) return;
 
-    HiveIterator it_copy = {it->block, it->index};
+    HiveIterator it_copy = {it->block, it->index}; // 复制当前迭代器
 
     while (it_copy.block)
     {

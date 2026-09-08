@@ -207,6 +207,47 @@ typedef struct Block {
 - 这样会像标记位数组那样，需要额外的内存，但可以提高遍历效率
     - 这就是典型的"用空间换时间"的思想
 
+但这样虽说解决了遍历效率低的问题，但插入时只能在迭代器后面插入，而不能在迭代器前面插入
+
+### 位图堆叠
+
+截至该文章完成时 (2026年9月)，依旧使用的是空闲链表技术，即把空闲标记写在 `data` 数组里
+
+这里我们讲的是2025年12月 [LLVM 论坛](https://discourse.llvm.org/t/std-new-information-for-implementors/89125) 提出的位图堆叠技术
+
+相比之前的纯 `skipfield` 技术，这个相当于把 `skipfield` 和位掩码技术结合起来
+
+```
+# 跳跃字段
+| a | _ | b | _ | _ | _ | c | # 数据层
+| 0 | 1 | 0 | 3 | X | 3 | 0 | # skipfield
+
+# 位图堆叠
+| a | 1 | b | 3 | X | 3 | c | # 数据层
+| 1 | 0 | 1 | 0 | 0 | 0 | 1 | # L1 位图
+|             1             | # L2 位图
+```
+
+- 这里是把数据层和 `skipfield` 合并在一个数组中，通过 L1 位图判断当前位是否占用
+    - 如果占用 (1) 就读取数据
+    - 如果未占用 (0) 就读取 `skipfield` 大小
+- L2 位图用于判断当前块是否已满
+    - 0 表示已满
+    - 1 表示未满
+- 所以在插入时，只需要 O(1) 的时间判断块是否已满，遍历时只需要 O(1) 的时间判断块是否为空
+
+```c
+typedef struct Block {
+    char data[8]; // 数据层 + skipfield
+    uint8_t l1_bitset; // 第一层位图: 精确标记槽位是否被占用
+    uint8_t l2_bitset; // 第二层位图: 标记块是否已满
+    struct Block* next;
+    struct Block* prev;
+} Block;
+```
+
+- 这里为了简化，强制设计成两层位图堆叠，实际 `std::hive` 是根据块大小自动判断需要多少层位图堆叠
+
 ## 实现
 
 那么数据结构如下
@@ -216,10 +257,9 @@ typedef struct Block {
 #define RECYCLE_THRESHOLD 10 // 最多只保存10个回收块
 
 typedef struct Block {
-    char data[BLOCK_SIZE];
-    uint8_t skipfield[BLOCK_SIZE]; // 跳跃字段
-    size_t ref_count; // 引用计数
-    size_t element_count; // 元素计数
+    char data[BLOCK_SIZE]; // 数据层 + skipfield
+    uint8_t l1_bitset; // 第一层位图: 精确标记槽位是否被占用
+    uint8_t l2_bitset; // 第二层位图: 块满标记，0表示已满，1表示未满
     struct Block* next;
     struct Block* prev;
 } Block;
@@ -241,13 +281,14 @@ void block_reset(Block *block)
     if (!block) return;
 
     /* 初始化 `skipfield` */
-    memset(block->skipfield, 0, BLOCK_SIZE);
-    block->skipfield[0]= block->skipfield[BLOCK_SIZE - 1] = BLOCK_SIZE;
+    memset(block->data, 0, BLOCK_SIZE);
+    block->data[0]= block->data[BLOCK_SIZE - 1] = BLOCK_SIZE;
+
+    block->l1_bitset = 0; // 第一层位图: 全部置为0，表示所有槽位都未被占用
+    block->l2_bitset = 1; // 第二层位图: 标记块未满
 
     block->next = NULL;
     block->prev = NULL;
-    block->ref_count = 0;
-    block->element_count = 0;
 }
 ```
 
@@ -265,6 +306,30 @@ Block *create_block(void)
 
     block_reset(block); // 重置块数据
     return block;
+}
+```
+
+### 标记当前位已被占用
+
+```c
+void mark_occupied(Block *block, size_t index)
+{
+    if (!block || index >= BLOCK_SIZE) return;
+
+    block->l1_bitset |= (1 << index); // 标记槽位被占用
+    if (block->l1_bitset == 0xFF) // 全满的情况
+        block->l2_bitset = 0;
+}
+```
+
+### 标记当前位已被删除
+
+```c
+void mark_free(Block *block, size_t index)
+{
+    if (!block || index >= BLOCK_SIZE) return;
+    block->l1_bitset &= ~(1 << index); // 标记槽位未被占用
+    block->l2_bitset = 1; // 标记块未满
 }
 ```
 
@@ -307,9 +372,6 @@ void iterator_destroy(HiveIterator *it)
 {
     if (!it) return;
 
-    if (it->block)    
-        it->block->ref_count--; // 释放迭代器所指向的块的引用
-
     free(it);
 }
 ```
@@ -339,7 +401,7 @@ void iterator_next(HiveIterator *it)
 
 #### 遍历块表
 
-遍历整个块表，直到找到下一个非空块
+遍历整个块表，直到块表节点为 `NULL`
 
 ```c
 void iterator_next(HiveIterator *it)
@@ -356,7 +418,10 @@ void iterator_next(HiveIterator *it)
 
 #### 跨块判断
 
-如果 `index` 超过了块大小，说明需要跨块
+这里一共有两种情况需要跨块
+
+- 当前块为空 (`block->l1_bitset == 0`)
+- `index` 超过了块大小 (`index >= BLOCK_SIZE`)
 
 ```c
 void iterator_next(HiveIterator *it)
@@ -369,26 +434,30 @@ void iterator_next(HiveIterator *it)
     /* 找到有效元素或到达末尾 */
     while (it->block)
     {
-        /* 如果超出当前块，移到下一个块 */
+        /* 如果是空块，直接跳过 */
+        if (it->block->l1_bitset == 0) // L1位图全为0，表示块为空
+        {
+            it->block = it->block->next;
+            if (!it->block) return; // 末尾
+            it->index = 0; // 重置索引
+            continue;
+        }
+
+        /* 如果索引超出当前块，移到下一个块 */
         if (it->index >= BLOCK_SIZE)
         {
-            Block *next = it->block->next;
-            it->block->ref_count--;
-            it->block = next;
+            it->block = it->block->next;
             if (!it->block) return; // 末尾
-            it->block->ref_count++;
             it->index = 0; // 重置索引
+            continue;
         }
     }
 }
 ```
 
-#### 读取 `skipfield`
+#### 检查当前位是否被占用
 
-读取下一个位置的 `skipfield` 大小，判断是否为有效位
-
-- 如果 `skipfield` 大于 0，说明该位无效，需要跳过当前所有无效位 (`index + skipfield`)
-- 如果 `skipfield` 等于 0，说明该位有效，返回该位
+通过读取 `l1_bitset` 的当前位，如果被占用就结束遍历，否则从 `data[index]` 读取 `skipfield` 大小
 
 ```c
 void iterator_next(HiveIterator *it)
@@ -401,23 +470,30 @@ void iterator_next(HiveIterator *it)
     /* 找到有效元素或到达末尾 */
     while (it->block)
     {
-        /* 如果超出当前块，移到下一个块 */
+        /* 如果是空块，直接跳过 */
+        if (it->block->l1_bitset == 0) // L1位图全为0，表示块为空
+        {
+            it->block = it->block->next;
+            if (!it->block) return; // 末尾
+            it->index = 0; // 重置索引
+            continue;
+        }
+
+        /* 如果索引超出当前块，移到下一个块 */
         if (it->index >= BLOCK_SIZE)
         {
-            Block *next = it->block->next;
-            it->block->ref_count--;
-            it->block = next;
+            it->block = it->block->next;
             if (!it->block) return; // 末尾
-            it->block->ref_count++;
             it->index = 0; // 重置索引
+            continue;
         }
 
         /* 检查当前位置 */
-        uint8_t skip = it->block->skipfield[it->index];
-        if (skip == 0)
-            return; // 找到有效元素
-            
-        it->index += skip; // 跳过无效位
+        if ((it->block->l1_bitset & (1 << it->index))) // 被占用，结束
+            return;
+
+        uint8_t skip = (uint8_t)it->block->data[it->index];
+        it->index += skip;
     }
 }
 ```
@@ -427,14 +503,16 @@ void iterator_next(HiveIterator *it)
 只需要使用迭代器和 `iterator_next` 函数来遍历 Hive
 
 ```c
-void hive_traverse(HiveIterator *it)
+void hive_traverse(const HiveIterator *it)
 {
     if (!it || !it->block) return;
 
-    while (it->block)
+    HiveIterator it_copy = {it->block, it->index}; // 复制当前迭代器
+
+    while (it_copy.block)
     {
-        printf("%c", it->block->data[it->index]);
-        iterator_next(it);
+        printf("%c", it_copy.block->data[it_copy.index]);
+        iterator_next(&it_copy);
     }
 }
 ```
@@ -622,7 +700,7 @@ void recycle_block(Hive *hive, Block *block)
 
 #### 尝试回收块
 
-如果 `block_count` 小于等于 `RECYCLE_THRESHOLD`，则直接回收块，否则将块释放
+如果当前回收池未满 (`recycled_count < RECYCLE_THRESHOLD`)，则将当前块加入回收池；否则直接释放当前块
 
 ```c
 void recycle_block(Hive *hive, Block *block)
@@ -690,7 +768,9 @@ HiveIterator *hive_insert(Hive *hive, const HiveIterator *it, const char c)
 }
 ```
 
-#### 在当前块查找空闲位置
+#### 检查当前块是否为满
+
+如果当前块满了 (`!(it->block->l2_bitset & 1)`)，需要插入新块
 
 ```c
 HiveIterator *hive_insert(Hive *hive, const HiveIterator *it, const char c)
@@ -703,13 +783,29 @@ HiveIterator *hive_insert(Hive *hive, const HiveIterator *it, const char c)
     curr->block = it->block;
     curr->index = it->index;
 
-    /* 在当前块内找个空洞 */
-    while (curr->index < BLOCK_SIZE) {    }
+    if (!(it->block->l2_bitset & 1)) // 如果当前块已满，插入新块
+    {
+        Block *new_block = insert_block_after(hive, curr); 
+        if (!new_block)
+        {
+            iterator_destroy(curr);
+            return NULL;
+        }
+
+        // 指向新块，插在索引0
+        curr->block = new_block;
+        curr->index = 0;
+
+        // 插入数据
+        curr->block->data[curr->index] = c;
+        curr->block->data[1] = curr->block->data[BLOCK_SIZE - 1] = (char)(BLOCK_SIZE - 1);
+
+        mark_occupied(curr->block, curr->index);
+
+        return curr;
+    }
 }
 ```
-
-- 这里为了方便演示，我们只在当前块向后查找空闲位置
-- 实际 `std::hive` 会构造一个空闲链表保存空闲位位置
 
 #### 处理空洞情况
 
@@ -726,24 +822,42 @@ HiveIterator *hive_insert(Hive *hive, const HiveIterator *it, const char c)
     curr->block = it->block;
     curr->index = it->index;
 
-    /* 在当前块内找个空洞 */
-    while (curr->index < BLOCK_SIZE)
+    if (!(it->block->l2_bitset & 1)) // 如果当前块已满，插入新块
     {
-        if (curr->block->skipfield[curr->index] > 0)
+        Block *new_block = insert_block_after(hive, curr); 
+        if (!new_block)
         {
-            curr->block->data[curr->index] = c;
-            curr->block->element_count++;
-
-            // 更新 skipfield (拆分空洞)
-            insert_update_skipfield(curr);
-
-            curr->block->ref_count++; // 返回的迭代器持有引用
-            return curr;
+            iterator_destroy(curr);
+            return NULL;
         }
-        curr->index++;
+
+        // 指向新块，插在索引0
+        curr->block = new_block;
+        curr->index = 0;
+
+        // 插入数据
+        curr->block->data[curr->index] = c;
+        curr->block->data[1] = curr->block->data[BLOCK_SIZE - 1] = (char)(BLOCK_SIZE - 1);
+
+        mark_occupied(curr->block, curr->index);
+
+        return curr;
     }
+
+    /* 处理空洞情况 */
+    uint8_t first_empty = __builtin_ctz(~(it->block->l1_bitset)); // 找到第一个空闲的槽位
+    curr->index = first_empty;
+
+    /* 插入 */
+    mark_occupied(curr->block, curr->index);
+    insert_update_skipfield(curr);
+    curr->block->data[curr->index] = c;
+
+    return curr;
 }
 ```
+
+- `insert_update_skipfield` **必须**在插入元素前进行，否则 `skipfield` 会直接使用插入元素的值进行更新
 
 #### 更新 `skipfield`
 
@@ -753,24 +867,23 @@ HiveIterator *hive_insert(Hive *hive, const HiveIterator *it, const char c)
 
 ```
 # 插入前
-| 1 | _ | _ | _ | 2 |
-| 0 | 2 | X | 2 | 0 |
+| a | 2 | X | 2 | c |
 ```
 
-假设现在在第 3 位插入元素
+假设现在在第 3 位插入元素，先更新 `skipfield` 大小
 
 ```
-# 插入后 (未更新空洞)
-| 1 | _ | 3 | _ | 2 |
-| 0 | 2 | X | 2 | 0 |
+# 更新空洞
+| a | ^ | 1 | 1 | c |
 ```
 
-这时需要更新相邻的 `skipfield` 大小
+- `^` 表示元素插入位置 (尚未写入数据)
+
+然后写入数据
 
 ```
-# 插入后 (已更新空洞)
-| 1 | _ | 3 | _ | 2 |
-| 0 | 1 | 0 | 1 | 0 |
+# 插入后
+| a | b | 1 | 1 | c |
 ```
 
 ```c
@@ -788,13 +901,19 @@ static void insert_update_skipfield(HiveIterator *it)
     if (!it || !it->block) return;
 
     size_t i = it->index;
-    uint8_t total_len = it->block->skipfield[i]; // 当前空洞长度 (假定插入发生在 head 或 tail)
-
+    uint8_t total_len = (uint8_t)it->block->data[i]; // 当前空洞长度
+    
     if (total_len == 0) return;
 }
 ```
 
-##### 算出左侧和右侧残留空洞的长度
+##### 算出右侧残留空洞的长度
+
+由于 `hive_insert()` 中使用 `__builtin_ctz` 指令来定位第一个空洞位置
+
+所以插入位置**一定**是某个空洞的头部
+
+因此只需要求右侧空洞的长度
 
 ```c
 static void insert_update_skipfield(HiveIterator *it)
@@ -802,51 +921,26 @@ static void insert_update_skipfield(HiveIterator *it)
     if (!it || !it->block) return;
 
     size_t i = it->index;
-    uint8_t total_len = it->block->skipfield[i]; // 当前空洞长度 (假定插入发生在 head 或 tail)
-
-    if (total_len == 0) return;
-
-    // 假设当前插入点 i 是空洞的 head
-    size_t head = i;
-    size_t tail = i + total_len - 1;
-
-    // 算出左侧和右侧残留空洞的长度
-    size_t left_len  = i - head; // i 之前剩余的空洞长度 (若在 head 插入则为 0)
-    size_t right_len = tail - i; // i 之后剩余的空洞长度
-}
-```
-
-##### 清空当前位的 `skipfield` 大小
-
-因为已经被占用，所以当前位的 `skipfield` 为 0
-
-```c
-static void insert_update_skipfield(HiveIterator *it)
-{
-    if (!it || !it->block) return;
-
-    size_t i = it->index;
-    uint8_t total_len = it->block->skipfield[i]; // 当前空洞长度 (假定插入发生在 head 或 tail)
+    uint8_t total_len = (uint8_t)it->block->data[i]; // 当前空洞长度
     
     if (total_len == 0) return;
 
-    // 假设当前插入点 i 是空洞的 head
-    size_t head = i;
+    /*
+    * 由于 hive_insert 使用 __builtin_ctz 从头部开始找空洞，
+    * 插入位置一定是空洞的头部，左侧不可能有残留空洞。
+    * 因此只需将原空洞拆分为“插入点”和“右侧残留空洞”，
+    * 并更新右侧空洞的头尾标记。
+    */
     size_t tail = i + total_len - 1;
 
-    // 算出左侧和右侧残留空洞的长度
-    size_t left_len  = i - head; // i 之前剩余的空洞长度 (若在 head 插入则为 0)
+    // 算出右侧残留空洞的长度
     size_t right_len = tail - i; // i 之后剩余的空洞长度
-
-    // 槽位 i 被占用，Skipfield 清零
-    it->block->skipfield[i] = 0;
 }
 ```
 
-- 因为演示代码默认在空洞头部或尾部插入，所以当前槽位的 `skipfield` 值就是该空洞的总长度
-- 若发生在空洞中间，需先通过首尾标记推导 `head` 和 `tail`
+##### 更新 `skipfield` 大小
 
-##### 更新左右 `skipfield`
+只需要更新右侧空洞的长度
 
 ```c
 static void insert_update_skipfield(HiveIterator *it)
@@ -854,95 +948,22 @@ static void insert_update_skipfield(HiveIterator *it)
     if (!it || !it->block) return;
 
     size_t i = it->index;
-    uint8_t total_len = it->block->skipfield[i]; // 当前空洞长度 (假定插入发生在 head 或 tail)
+    uint8_t total_len = (uint8_t)it->block->data[i]; // 当前空洞长度
     
     if (total_len == 0) return;
 
-    // 假设当前插入点 i 是空洞的 head
-    size_t head = i;
+    // 由于我们使用 `ctz` 指令查找空洞，所以插入一定是在空洞的的头部 (head)
     size_t tail = i + total_len - 1;
 
-    // 算出左侧和右侧残留空洞的长度
-    size_t left_len  = i - head; // i 之前剩余的空洞长度 (若在 head 插入则为 0)
+    // 算出右侧残留空洞的长度
     size_t right_len = tail - i; // i 之后剩余的空洞长度
 
-    // 槽位 i 被占用，Skipfield 清零
-    it->block->skipfield[i] = 0;
-
-    /* 左边空洞长度 > 0，更新 Skipfield */
-    if (left_len > 0)
-    {
-        it->block->skipfield[i - 1] = (uint8_t)left_len;
-        it->block->skipfield[head] = (uint8_t)left_len;
-    }
-
-    /* 右边空洞长度 > 0，更新 Skipfield */
+    /* 只需要更新右侧的空洞长度 */
     if (right_len > 0)
     {
-        it->block->skipfield[i + 1] = (uint8_t)right_len;
-        it->block->skipfield[tail] = (uint8_t)right_len;
+        it->block->data[i + 1] = (char)right_len;
+        it->block->data[tail] = (char)right_len;
     }
-}
-```
-
-#### 处理块满的情况
-
-如果当前块满了，需要插入新块
-
-```c
-HiveIterator *hive_insert(Hive *hive, const HiveIterator *it, const char c)
-{
-    if (!hive || !it || !it->block) return NULL;
-
-    HiveIterator *curr = iterator_create();
-    if (!curr) return NULL;
-
-    curr->block = it->block;
-    curr->index = it->index;
-
-    /* 在当前块内找个空洞 */
-    while (curr->index < BLOCK_SIZE)
-    {
-        if (curr->block->skipfield[curr->index] > 0)
-        {
-            curr->block->data[curr->index] = c;
-            curr->block->element_count++;
-
-            // 更新 skipfield (拆分空洞)
-            insert_update_skipfield(curr);
-
-            curr->block->ref_count++; // 返回的迭代器持有引用
-            return curr;
-        }
-        curr->index++;
-    }
-
-    /* 
-      当前块没空洞了 (满了)，直接在它后面插一个新块！
-      因为是无序容器，我们不关心新块插在链表中间还是尾部，只要链接上就行 
-    */
-    Block *new_block = insert_block_after(hive, curr); 
-    if (!new_block)
-    {
-        iterator_destroy(curr);
-        return NULL;
-    }
-
-    // 指向新块，插在索引0
-    curr->block = new_block;
-    curr->index = 0;
-
-    // 插入数据
-    curr->block->data[curr->index] = c;
-    curr->block->element_count++;
-
-    // 初始化新块：0号位有效，1~7全是空洞
-    curr->block->skipfield[0] = 0;
-    curr->block->skipfield[1] = BLOCK_SIZE - 1;
-    curr->block->skipfield[BLOCK_SIZE - 1] = BLOCK_SIZE - 1;
-
-    curr->block->ref_count++; // 返回的迭代器持有引用
-    return curr;
 }
 ```
 
@@ -953,13 +974,26 @@ void hive_erase(Hive *hive, HiveIterator *it)
 {
     if (!hive || !it || !it->block) return;
 
-    if (it->block->skipfield[it->index] > 0) return; // 已经是空槽，不需要删除
-
-    it->block->element_count--; // 减少元素计数
+    if (!(it->block->l1_bitset & 1 << it->index)) return; // 已经是空槽，不需要删除
 }
 ```
 
 #### 标记该位为已被删除
+
+```c
+void hive_erase(Hive *hive, HiveIterator *it)
+{
+    if (!hive || !it || !it->block) return;
+
+    if (!(it->block->l1_bitset & 1 << it->index)) return; // 已经是空槽，不需要删除
+
+    mark_free(it->block, it->index);
+
+    erase_update_skipfield(it);
+}
+```
+
+#### 更新 `skipfield`
 
 直接更新当前位的 `skipfield` 表示 (合并空洞)
 
@@ -967,118 +1001,145 @@ void hive_erase(Hive *hive, HiveIterator *it)
 
 ```
 # 删除前
-| 1 | 2 | _ | 3 |
-| 0 | 0 | 1 | 0 |
+| a | b | 1 | c |
 ```
 
 删除第 2 位的元素
 
 ```
 # 删除后 (未更新空洞)
-| 1 | _ | _ | 3 |
-| 0 | 0 | 1 | 0 |
+| a | ^ | 1 | c |
 ```
+
+- `^` 表示元素删除位置 (尚未清除数据)
 
 这时需要更新相邻的 `skipfield` 大小
 
 ```
 # 删除后 (已更新空洞)
-| 1 | _ | _ | 3 |
-| 0 | 2 | 2 | 0 |
+| a | 2 | 2 | c |
 ```
 
-##### 读取左右 `skipfield` 大小
-
 ```c
-void hive_erase(Hive *hive, HiveIterator *it)
+static void erase_update_skipfield(HiveIterator *it)
 {
-    if (!hive || !it || !it->block) return;
-
-    if (it->block->skipfield[it->index] > 0) return; // 已经是空槽，不需要删除
-
-    it->block->element_count--; // 减少元素计数
-
-    size_t left_skip = (it->index > 0) ? it->block->skipfield[it->index - 1] : 0;
-    size_t right_skip = (it->index < BLOCK_SIZE - 1) ? it->block->skipfield[it->index + 1] : 0;
+    if (!it || !it->block) return;
 }
 ```
 
-##### 计算左右新空洞大小
+##### 读取左右相邻的 `skipfield` 大小
+
+由于迭代器从不落在空洞中间，因此 `index - 1` 和 `index + 1` 如果是空洞，它一定是指向空洞头尾
+
+所以只需要读取索引为 `index - 1` 和 `index + 1` 的 `skipfield` 大小
+
+它们的边界条件如下
+
+- 左: 初始值为 0
+    - 条件一: 索引大于 0 (`index > 0`)
+    - 条件二: 当前块中第 `index - 1` 位未被占用 (`it->block->l1_bitset & (1 << (it->index - 1))`)
+    - 如果任意一个条件不满足，就取 0
+- 右: 初始值为 0
+    - 条件一: 索引小于 `BLOCK_SIZE - 1` (`index < BLOCK_SIZE - 1`)
+    - 条件二: 当前块中第 `index + 1` 位未被占用 (`it->block->l1_bitset & (1 << (it->index + 1))`)
+    - 如果任意一个条件不满足，就取 0
 
 ```c
-void hive_erase(Hive *hive, HiveIterator *it)
+static void erase_update_skipfield(HiveIterator *it)
 {
-    if (!hive || !it || !it->block) return;
+    if (!it || !it->block) return;
 
-    if (it->block->skipfield[it->index] > 0) return; // 已经是空槽，不需要删除
+    size_t left_skip = 0;
+    size_t right_skip = 0;
 
-    it->block->element_count--; // 减少元素计数
-
-    size_t left_skip = (it->index > 0) ? it->block->skipfield[it->index - 1] : 0;
-    size_t right_skip = (it->index < BLOCK_SIZE - 1) ? it->block->skipfield[it->index + 1] : 0;
-
-    /* 这里更新空洞的跳转信息 */
-    size_t head = it->index - left_skip;
-    size_t tail = it->index + right_skip;
-    uint8_t new_skip = (uint8_t)(left_skip + right_skip + 1);
+    if (it->index > 0 &&
+        !(it->block->l1_bitset & (1 << (it->index - 1)))) // 判断左边是否有空洞
+        left_skip = (size_t)it->block->data[it->index - 1];
+    
+    if (it->index < BLOCK_SIZE - 1 &&
+        !(it->block->l1_bitset & (1 << (it->index + 1)))) // 判断右边是否有空洞
+        right_skip = (size_t)it->block->data[it->index + 1];
 }
 ```
 
-##### 更新左右 `skipfield` 大小
+##### 计算空洞头尾索引
 
-此时左右两侧的 `skipfield` 应该都等于 `new_skip`，即合并了左右两侧的空洞
+公式如下
+
+- 头部: `index - left_skip`
+- 尾部: `index + right_skip`
 
 ```c
-void hive_erase(Hive *hive, HiveIterator *it)
+static void erase_update_skipfield(HiveIterator *it)
 {
-    if (!hive || !it || !it->block) return;
+    if (!it || !it->block) return;
 
-    if (it->block->skipfield[it->index] > 0) return; // 已经是空槽，不需要删除
+    size_t left_skip = 0;
+    size_t right_skip = 0;
 
-    it->block->element_count--; // 减少元素计数
+    if (it->index > 0 &&
+        !(it->block->l1_bitset & (1 << (it->index - 1)))) // 判断左边是否有空洞
+        left_skip = (size_t)it->block->data[it->index - 1];
+    
+    if (it->index < BLOCK_SIZE - 1 &&
+        !(it->block->l1_bitset & (1 << (it->index + 1)))) // 判断右边是否有空洞
+        right_skip = (size_t)it->block->data[it->index + 1];
 
-    size_t left_skip = (it->index > 0) ? it->block->skipfield[it->index - 1] : 0;
-    size_t right_skip = (it->index < BLOCK_SIZE - 1) ? it->block->skipfield[it->index + 1] : 0;
-
-    /* 这里更新空洞的跳转信息 */
+    /* 空洞头尾索引 */
     size_t head = it->index - left_skip;
     size_t tail = it->index + right_skip;
-    uint8_t new_skip = (uint8_t)(left_skip + right_skip + 1);
+}
+```
 
-    it->block->skipfield[head] = new_skip;
-    it->block->skipfield[tail] = new_skip;
+##### 计算空洞头尾新空洞大小
+
+新空洞大小等于左右空洞长度之和加一
+
+```c
+static void erase_update_skipfield(HiveIterator *it)
+{
+    if (!it || !it->block) return;
+
+    size_t left_skip = 0;
+    size_t right_skip = 0;
+
+    if (it->index > 0 &&
+        !(it->block->l1_bitset & (1 << (it->index - 1)))) // 判断左边是否有空洞
+        left_skip = (size_t)it->block->data[it->index - 1];
+    
+    if (it->index < BLOCK_SIZE - 1 &&
+        !(it->block->l1_bitset & (1 << (it->index + 1)))) // 判断右边是否有空洞
+        right_skip = (size_t)it->block->data[it->index + 1];
+
+    /* 空洞头尾索引 */
+    size_t head = it->index - left_skip;
+    size_t tail = it->index + right_skip;
+
+    uint8_t new_skip = (uint8_t)(left_skip + right_skip + 1);
+    it->block->data[head] = (char)new_skip;
+    it->block->data[tail] = (char)new_skip;
 }
 ```
 
 - 通过更新空洞的跳转信息，从而避免了如 `std::vector` 一样的问题，即需要移动后面的元素和后面元素迭代器失效的问题
     - 这就是 `std::hive` 中 `skipfield` 逻辑删除的优势
 
-#### 释放引用计数并回收块
+#### 尝试回收块
+
+如果当前块为空 (`block->l1_bitset == 0`)，则回收块
 
 ```c
 void hive_erase(Hive *hive, HiveIterator *it)
 {
     if (!hive || !it || !it->block) return;
 
-    if (it->block->skipfield[it->index] > 0) return; // 已经是空槽，不需要删除
+    if (!(it->block->l1_bitset & 1 << it->index)) return; // 已经是空槽，不需要删除
 
-    it->block->element_count--; // 减少元素计数
+    mark_free(it->block, it->index);
 
-    size_t left_skip = (it->index > 0) ? it->block->skipfield[it->index - 1] : 0;
-    size_t right_skip = (it->index < BLOCK_SIZE - 1) ? it->block->skipfield[it->index + 1] : 0;
+    erase_update_skipfield(it);
 
-    /* 这里更新空洞的跳转信息 */
-    size_t head = it->index - left_skip;
-    size_t tail = it->index + right_skip;
-    uint8_t new_skip = (uint8_t)(left_skip + right_skip + 1);
-
-    it->block->skipfield[head] = new_skip;
-    it->block->skipfield[tail] = new_skip;
-
-    it->block->ref_count--; // 释放当前块的引用
-
-    /* 当没有引用计数且元素计数为0时，回收块 */
-    if (it->block->ref_count == 0 && it->block->element_count == 0)
+    if (it->block->l1_bitset == 0) // 如果当前块已空，回收块
         recycle_block(hive, it->block);
 
     /* 迭代器失效 */
@@ -1098,16 +1159,16 @@ void hive_erase(Hive *hive, HiveIterator *it)
 | 块大小 | 固定 8 字节 | 通常 64KB 量级，可调整 |
 | 内存分配器 | `malloc`/`free` | 支持自定义分配器 + PMR |
 | 容量管理 | 仅 `clear_hive()` | `reserve()`、`shrink_to_fit()` 等 |
-| 插入 | O(1) (固定块大小) | O(1) (均摊) |
+| 插入 | O(1) (均摊) | O(1) (均摊) |
 | 按值查找 | 未实现 | 需手动遍历 |
-| 遍历 | O(N) | O(N) |
+| 遍历 | O(N) (有效元素数) | O(N) |
 
 ### 真实实现的"冰山之下"
 
-本演示代码仅用 300 行展示了 Skipfield 的核心机制。但真实的 `std::hive` 标准库实现远不止于此，它还必须在以下方面进行严密设计：
+本演示代码仅用 400 多行展示了 Skipfield 的核心机制。但真实的 `std::hive` 标准库实现远不止于此，它还必须在以下方面进行严密设计：
 
-- 迭代器失效隔离：删除元素时，必须保证指向其他元素的迭代器完全不受影响。这要求每个槽位维护"版本号"，迭代器解引用时校验版本，而不是简单地用引用计数管理块
-    - 本演示为了**简化块生命周期管理使用了引用计数**
+- 迭代器失效隔离：删除元素时，必须保证指向其他元素的迭代器完全不受影响。这要求每个槽位维护"版本号"，迭代器解引用时校验版本号，版本号不一致则迭代器失效
+    - 本演示为了**简化块生命周期管理只判断块是否为空，而没有维护版本号**
 - 异常安全：当元素类型 T 的拷贝/移动构造函数抛出异常时，容器必须保持状态不变 (强异常保证)。这涉及大量 try-catch 和 std::move_if_noexcept 的模板元编程
 - 全局空洞查找：本演示只扫描当前块，真实实现需要能快速定位任意块中的空闲槽位，同时不能破坏迭代器稳定性。常见的方案是为每个块维护一个"空闲计数器"，并配合全局空闲块链表
 - 块容量动态调整：块大小需要根据分配情况自动增长 (如 1.69 倍)，但块一旦分配就不能移动 (否则指向它的迭代器会失效)，这对内存分配器提出了苛刻的要求
@@ -1117,7 +1178,7 @@ void hive_erase(Hive *hive, HiveIterator *it)
 
 ## 补充说明
 
-- 本实现旨在展示核心思想：分块存储、空闲块复用、跳转字段
+- 本实现旨在展示核心思想：分块存储、空闲块复用、跳转字段和位图堆叠
 - 为了保持迭代器稳定和内存紧凑，真实 `std::hive` 通常不会为空洞建立全局索引，而是采用惰性扫描策略；部分高性能实现会为每个块维护一个‘空闲计数器’以加速查找
 - 标准库 `std::hive` 的设计目标是在大规模、频繁修改、需要迭代器稳定的场景 (如游戏实体管理、实时系统) 中提供最优性能，其实现细节远比示例复杂 (如跳字段、块大小动态调整、内存回收策略等)
 - 若要在实际项目中使用，请直接采用 C++26 标准库，或参考成熟的开源实现 (如 LLVM 的 `libc++` 或 GCC 的 `libstdc++` 中的 hive 实现)
