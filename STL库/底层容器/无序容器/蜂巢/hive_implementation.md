@@ -116,7 +116,7 @@ typedef struct Block {
 
 ### 移动到目标位
 
-通过左移 `<<` 操作，我们可以 `1` 这个数移动到目标位
+通过左移 `<<` 操作，我们可以将 `1` 这个数移动到目标位
 
 这个 1 在二进制上是 `0b00001`，表示第1位
 
@@ -739,8 +739,8 @@ void recycle_block(Hive *hive, Block *block)
 ```
 
 - 在 `std::hive` 中，它会检测系统内存使用情况，如果内存使用率过高，就销毁块
-- 这里为了方便演示，这里我们假设 RECYCLE_THRESHOLD 为 10
-    - 实际可以通过一些表达式改变这个 RECYCLE_THRESHOLD 的值
+- 这里为了方便演示，这里我们假设 `RECYCLE_THRESHOLD` 为 10
+    - 实际可以通过一些表达式改变这个 `RECYCLE_THRESHOLD` 的值
 
 ### 插入元素
 
@@ -952,7 +952,7 @@ static void insert_update_skipfield(HiveIterator *it)
     
     if (total_len == 0) return;
 
-    // 由于我们使用 `ctz` 指令查找空洞，所以插入一定是在空洞的的头部 (head)
+    // 由于我们使用 `ctz` 指令查找空洞，所以插入一定是在空洞的头部 (head)
     size_t tail = i + total_len - 1;
 
     // 算出右侧残留空洞的长度
