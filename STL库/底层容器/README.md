@@ -18,6 +18,7 @@
   - `list`：双向链表
   - `forward_list`：单向链表
   - `array`：固定大小数组
+  - `implace_vector`：可变大小数组 (C++26新增)
 
 - [**关联容器**](关联容器/README.md)
   - `set`：集合
@@ -30,6 +31,7 @@
   - `unordered_multiset`：无序多重集合
   - `unordered_map`：无序映射
   - `unordered_multimap`：无序多重映射
+  - `hive`: 蜂巢 (C++26新增)
 
 ## 迭代器失效
 

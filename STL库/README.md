@@ -15,7 +15,6 @@ STL (Standard Template Library) 是 C++ 标准库的一部分，提供了许多�
   - `forward_list`：单向链表
   - `array`：固定大小数组
   - `implace_vector`：可变大小数组 (C++26新增)
-  - `hive`: 蜂巢容器 (C++26新增)
 
 - **关联容器**
   - `set`：集合
@@ -28,6 +27,7 @@ STL (Standard Template Library) 是 C++ 标准库的一部分，提供了许多�
   - `unordered_multiset`：无序多重集合
   - `unordered_map`：无序映射
   - `unordered_multimap`：无序多重映射
+  - `hive`: 蜂巢容器 (C++26新增)
 
 ### [容器适配器](容器适配器/README.md)
 
@@ -47,7 +47,7 @@ STL (Standard Template Library) 是 C++ 标准库的一部分，提供了许多�
 | 接口丰富度 | ✅ 完整操作 | ⚠️ 受限接口 |
 
 - 容器适配器只有 `std::flat_*` 系列有迭代器和随机访问 (如 `begin() + n` 访问元素)，其他容器适配器没有迭代器和随机访问
-  - `std_map` 还提供 `at()` 方法
+  - `std::flat_map` 还提供 `at()` 方法
 
 ## 迭代器（Iterators）
 
