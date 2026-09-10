@@ -2,14 +2,6 @@
 
 迭代器是一种广义化的指针，它使得 C++ 程序可以通过统一的方式处理不同的数据结构
 
-## 迭代器的分类
-
-- `input_iterator`：输入迭代器
-- `output_iterator`：输出迭代器
-- `forward_iterator`：前向迭代器
-- `bidirectional_iterator`：双向迭代器
-- `random_access_iterator`：随机访问迭代器
-
 ## 简单示例
 
 假设现在有一个 `vector`，我们想要遍历它并打印出每个元素
@@ -70,7 +62,7 @@ std::cout << "\n";
 - `advance`: 将迭代器向前移动指定的步数
 - `distance`: 计算两个迭代器之间的距离
 
-### 返回一个指向下一个元素的迭代器
+### `std::next()`
 
 ```cpp
 std::vector<int> vec = {1, 2, 3, 4, 5};
@@ -78,15 +70,15 @@ std::vector<int>::iterator it = vec.begin();
 it = std::next(it); // 指向 2
 ```
 
-### 返回一个指向前一个元素的迭代器
+### `std::prev()`
 
 ```cpp
 std::vector<int> vec = {1, 2, 3, 4, 5};
 std::vector<int>::iterator it = vec.end();
-it = std::prev(it); // 指向 4
+it = std::prev(it); // 指向 5
 ```
 
-### 将迭代器向前移动指定的步数
+### `std::advance()`
 
 ```cpp
 std::vector<int> vec = {1, 2, 3, 4, 5};
@@ -94,11 +86,38 @@ std::vector<int>::iterator it = vec.begin();
 std::advance(it, 2); // 将迭代器向前移动2步，即指向3
 ```
 
-### 计算两个迭代器之间的距离
+### `std::distance()`
 
 ```cpp
 std::vector<int> vec = {1, 2, 3, 4, 5};
 std::vector<int>::iterator it1 = vec.begin();
 std::vector<int>::iterator it2 = vec.end();
 std::cout << std::distance(it1, it2) << "\n"; // 输出5
+```
+
+## 迭代器实现详解
+
+我们将会以实现一个斐波那契数列的迭代器，详细讲解迭代器的实现
+
+1. [迭代器特征](迭代器特征/README.md)
+2. [迭代器操作](迭代器操作/README.md)
+3. 迭代器适配器
+4. 迭代器失效
+5. 迭代器与算法配合
+
+初始模板类定义如下
+
+```cpp
+template <typename T>
+class FibonacciIterator {
+    private:
+        T curr;
+        T prev;
+    public:
+        FibonacciIterator()
+        {
+            curr = 1;
+            prev = 0;
+        }
+};
 ```
