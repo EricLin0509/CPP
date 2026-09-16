@@ -95,6 +95,29 @@ std::vector<int>::iterator it2 = vec.end();
 std::cout << std::distance(it1, it2) << "\n"; // 输出5
 ```
 
+## 迭代器类别
+
+根据迭代器支持的操作能力，C++ 标准库将迭代器分为 5 种类别（C++20 新增第 6 种），形成从弱到强的层次关系
+
+| 类别 | 支持的操作 | 典型容器 |
+| :---: | :-------: | :-----: |
+| `input_iterator` | 只读、单趟、`++` | `std::istream_iterator` |
+| `output_iterator` | 只写、单趟、`++` | `std::ostream_iterator` |
+| `forward_iterator` | 读写、多趟、`++` | `std::forward_list` |
+| `bidirectional_iterator` | 读写、多趟、`++`/`--` | `std::list`, `std::map`, `std::set` |
+| `random_access_iterator` | 读写、多趟、`++`/`--`/`+=`/`-=`/`[]` | `std::vector`, `std::deque` |
+| `contiguous_iterator` (C++20) | 同上，且元素在内存中连续 | `std::vector`, `std::string` |
+
+层次关系（从弱到强）：
+
+```
+input_iterator ← forward_iterator ← bidirectional_iterator ← random_access_iterator ← contiguous_iterator
+output_iterator ← forward_iterator
+```
+
+- 更强类别的迭代器满足更弱类别的所有要求，因此可以替代更弱类别的迭代器使用
+- 标准库算法会根据迭代器类别选择最优实现（详见[迭代器与算法配合](迭代器与算法配合/README.md)）
+
 ## 迭代器实现详解
 
 我们将会以实现一个斐波那契数列的迭代器，详细讲解迭代器的实现
@@ -123,4 +146,4 @@ class FibonacciIterator {
 
 1. [迭代器适配器](迭代器适配器/README.md)：标准库提供的迭代器包装器，将普通迭代器包装成具有特殊行为的迭代器
 2. [迭代器失效](迭代器失效/README.md)：对容器进行某些操作后，迭代器不再指向有效元素的情况
-3. 迭代器与算法配合
+3. [迭代器与算法配合](迭代器与算法配合/README.md)：迭代器可以与标准库提供的算法配合使用，实现对容器的遍历和操作
