@@ -12,7 +12,7 @@ int main() {
     Color c = Color::Red;
     switch (c)
     {
-        template for (const std::meta::info e : std::meta::enumerators_of(^^Color))
+        template for (constexpr std::meta::info e : std::meta::enumerators_of(^^Color))
         {
             case [:e:]:
                 std::cout << std::meta::name_of(e) << "\n";
