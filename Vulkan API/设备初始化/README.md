@@ -143,6 +143,23 @@ VulkanDevice::~VulkanDevice() {
 - 资源泄漏 / 死锁：过早销毁对象，或者在清理前未通过 `vkDeviceWaitIdle(device)` 等待 GPU 完成工作，可能会导致驱动程序侧的句柄或内存池无法释放。
 - Surface 与 Swapchain 不匹配：在逻辑设备或 Swapchain 之前销毁 WSI Surface，可能会触发 Surface 丢失错误或特定于平台的驱动程序故障。
 
+例如 `vkDestroyDevice` 放在 `vkDestroyCommandPool` 之前
+
+```cpp
+vkDestroyDevice(device_, nullptr);
+vkDestroyCommandPool(device_, commandPool, nullptr);
+```
+
+它会这样报错
+
+```bash
+validation layer: vkDestroyDevice(): VkDevice 0x56df0b0d37d0 has 1 leaked objects that have not been destroyed.
+VkCommandPool 0x30000000003
+The Vulkan spec states: All child objects created on device that can be destroyed or freed must have been destroyed or freed prior to destroying device (https://docs.vulkan.org/spec/latest/chapters/devsandqueues.html#VUID-vkDestroyDevice-device-05137)
+[Vulkan Loader] ERROR:          vkDestroyCommandPool: Invalid device [VUID-vkDestroyCommandPool-device-parameter]
+[1]    15756 abort (core dumped)  ./main
+```
+
 ## 创建 Vulkan Instance
 
 ### 检查验证层支持
@@ -774,6 +791,13 @@ void VulkanDevice::createBuffer(
   1. `vkCreateBuffer`：创建缓冲区对象
   2. `vkAllocateMemory`：根据缓冲区的内存需求分配设备内存
   3. `vkBindBufferMemory`：将缓冲区与分配的内存绑定
+
+总的来说，所有 Vulkan 资源的生命周期都可以总结为四个步骤：
+
+1. 创建对象
+2. 分配内存
+3. 绑定内存
+4. 销毁对象
 
 ### 单次命令提交
 
