@@ -113,50 +113,7 @@ configInfo.scissor.extent = {width, height};
 - Viewport：做坐标变换，决定 NDC 空间如何映射到像素空间 (缩放 + 偏移)
 - Scissor：做矩形裁剪，在像素空间中定义一个矩形，矩形外的片段直接丢弃
 
-## 视口状态 (Viewport State)
-
-视口状态的作用是 把 Viewport 和 Scissor 组装成一个管线状态，告诉管线"使用哪些视口和裁剪矩形"
-
-```cpp
-VkPipelineViewportStateCreateInfo viewportInfo;
-```
-
-```cpp
-configInfo.viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-configInfo.viewportInfo.viewportCount = 1;
-configInfo.viewportInfo.pViewports = &configInfo.viewport;
-configInfo.viewportInfo.scissorCount = 1;
-configInfo.viewportInfo.pScissors = &configInfo.scissor;
-```
-
-- `viewportCount` / `scissorCount`：视口和裁剪矩形的数量，这里各 1 个
-- `pViewports` / `pScissors`：指向视口和裁剪矩形对象的指针
-
-### 为什么需要这一层？
-
-Vulkan 管线创建时，每个固定功能阶段都需要一个对应的 `CreateInfo` 结构体
-
-视口和裁剪属于同一个管线阶段，所以 Vulkan 用一个 `VkPipelineViewportStateCreateInfo` 统一管理：
-
-```cpp
-typedef struct VkPipelineViewportStateCreateInfo {
-    VkStructureType sType;
-    const void*     pNext;
-    VkPipelineViewportStateCreateFlags flags;
-    uint32_t        viewportCount;    // 视口数量
-    const VkViewport* pViewports;     // 指向视口数组的指针
-    uint32_t        scissorCount;     // 裁剪矩形数量
-    const VkRect2D*  pScissors;       // 指向裁剪矩形数组的指针
-} VkPipelineViewportStateCreateInfo;
-```
-
-#### 常见用法——多视口/多裁剪
-
-`viewportCount` 和 `scissorCount` 可以大于 1，这就是 多视口渲染 (Multi-Viewport)
-
-GPU 可以在一次绘制调用中同时渲染到多个不同的视口区域。几何着色器可以通过 `gl_ViewportIndex` 选择每个图元输出到哪个视口
-
-### 为什么视口和裁剪矩形要作为独立成员存储在 PipelineConfigInfo 中？
+## 为什么视口和裁剪矩形要作为独立成员存储在 PipelineConfigInfo 中？
 
 因为 `pViewports` 和 `pScissors` 是指针，它们必须指向在管线创建时仍然有效的 `VkViewport` 和 `VkRect2D` 对象。如果将视口和裁剪矩形声明为函数局部变量，函数返回后指针就会悬空。将它们作为结构体成员，保证生命周期与 `PipelineConfigInfo` 一致
 
@@ -467,6 +424,46 @@ vertexInputInfo.pVertexAttributeDescriptions = nullptr;
 
 当前着色器直接在顶点着色器中硬编码顶点数据，因此顶点输入为空。后续引入顶点缓冲区后会填充这些字段。
 
+## 视口状态 (Viewport State)
+
+视口状态的作用是 把 Viewport 和 Scissor 组装成一个管线状态，告诉管线"使用哪些视口和裁剪矩形"
+
+```cpp
+VkPipelineViewportStateCreateInfo viewportInfo{};
+viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+viewportInfo.viewportCount = 1;
+viewportInfo.pViewports = &configInfo.viewport;
+viewportInfo.scissorCount = 1;
+viewportInfo.pScissors = &configInfo.scissor;
+```
+
+- `viewportCount` / `scissorCount`：视口和裁剪矩形的数量，这里各 1 个
+- `pViewports` / `pScissors`：指向视口和裁剪矩形对象的指针
+
+### 为什么需要这一层？
+
+Vulkan 管线创建时，每个固定功能阶段都需要一个对应的 `CreateInfo` 结构体
+
+视口和裁剪属于同一个管线阶段，所以 Vulkan 用一个 `VkPipelineViewportStateCreateInfo` 统一管理：
+
+```cpp
+typedef struct VkPipelineViewportStateCreateInfo {
+    VkStructureType sType;
+    const void*     pNext;
+    VkPipelineViewportStateCreateFlags flags;
+    uint32_t        viewportCount;    // 视口数量
+    const VkViewport* pViewports;     // 指向视口数组的指针
+    uint32_t        scissorCount;     // 裁剪矩形数量
+    const VkRect2D*  pScissors;       // 指向裁剪矩形数组的指针
+} VkPipelineViewportStateCreateInfo;
+```
+
+#### 常见用法——多视口/多裁剪
+
+`viewportCount` 和 `scissorCount` 可以大于 1，这就是 多视口渲染 (Multi-Viewport)
+
+GPU 可以在一次绘制调用中同时渲染到多个不同的视口区域。几何着色器可以通过 `gl_ViewportIndex` 选择每个图元输出到哪个视口
+
 ## 图形管线创建 (Graphics Pipeline Creation)
 
 这一步将我们之前创建的着色器阶段、顶点输入状态、输入装配器、视口与裁剪、光栅化器、颜色混合器、深度/模板测试、管线布局、渲染通道与子通道索引等配置汇总到一起，创建成一个图形管线
@@ -478,7 +475,7 @@ pipelineInfo.stageCount = 2;
 pipelineInfo.pStages = shaderStages;
 pipelineInfo.pVertexInputState = &vertexInputInfo;
 pipelineInfo.pInputAssemblyState = &configInfo.inputAssemblyInfo;
-pipelineInfo.pViewportState = &configInfo.viewportInfo;
+pipelineInfo.pViewportState = &viewportInfo;
 pipelineInfo.pRasterizationState = &configInfo.rasterizationInfo;
 pipelineInfo.pMultisampleState = &configInfo.multisampleInfo;
 pipelineInfo.pColorBlendState = &configInfo.colorBlendInfo;
