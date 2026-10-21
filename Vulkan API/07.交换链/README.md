@@ -761,3 +761,83 @@ GPU:  ──── 等待图像就绪 ── 渲染帧0 ── 呈现帧0 ──
 
 栅栏:    inFlightFences[0] ──────→  CPU 可以复用该帧的同步对象
 ```
+
+## 管线布局 (createPipelineLayout)
+
+管线布局 (Pipeline Layout) 描述了管线可以访问的全局资源：描述符集和推送常量
+
+```cpp
+VkPipelineLayoutCreateInfo layoutCreateInfo = {};
+layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+layoutCreateInfo.setLayoutCount = 0;
+layoutCreateInfo.pSetLayouts = nullptr;
+layoutCreateInfo.pushConstantRangeCount = 0;
+layoutCreateInfo.pPushConstantRanges = nullptr;
+
+vkCreatePipelineLayout(device.device(), &layoutCreateInfo, nullptr, &pipelineLayout);
+```
+
+- `setLayoutCount = 0` / `pSetLayouts = nullptr`：不使用任何描述符集布局。当前着色器不需要 Uniform Buffer、纹理采样器等资源
+- `pushConstantRangeCount = 0` / `pPushConstantRanges = nullptr`：不使用推送常量。推送常量是一种快速更新少量着色器数据的方式（后续章节会介绍）
+
+### 为什么需要管线布局？
+
+即使当前不使用任何描述符集和推送常量，管线布局仍然是必需的——它是图形管线创建的必要参数
+
+管线布局定义了管线的"资源接口"：
+
+```
+VkPipelineLayout
+  ├── 描述符集布局 (Descriptor Set Layouts)
+  │     描述着色器可以访问的 Uniform Buffer、纹理、采样器等资源的绑定方式
+  │
+  └── 推送常量范围 (Push Constant Ranges)
+        描述着色器可以快速访问的小块常量数据的布局
+```
+
+- **当前阶段**：着色器硬编码顶点数据，不需要外部资源，所以全部为 0 / nullptr
+- **后续阶段**：引入 Uniform Buffer（MVP 矩阵）、纹理采样器后，需要在此指定描述符集布局
+
+## 图形管线创建 (createPipeline)
+
+利用交换链的信息和管线布局，创建图形管线
+
+```cpp
+auto pipelineConfig = MyPipeline::defaultConfigInfo(swapChain.width(), swapChain.height());
+pipelineConfig.renderPass = swapChain.getRenderPass();
+pipelineConfig.pipelineLayout = pipelineLayout;
+
+pipeline = std::make_unique<MyPipeline>(
+    device,
+    pipelineConfig,
+    "simple_shader.vert.spv",
+    "simple_shader.frag.spv");
+```
+
+### 步骤分解
+
+1. **获取默认配置**：`MyPipeline::defaultConfigInfo(width, height)` 生成管线固定功能的默认配置（视口、光栅化、颜色混合等），传入交换链的宽高以设置视口和裁剪矩形
+
+2. **设置渲染通道**：`pipelineConfig.renderPass = swapChain.getRenderPass()`
+   - 管线必须知道在哪个渲染通道中执行，因为渲染通道定义了附件的格式和布局
+   - 管线的子通道索引默认为 0（与渲染通道中唯一的子通道对应）
+
+3. **设置管线布局**：`pipelineConfig.pipelineLayout = pipelineLayout`
+   - 管线需要知道可以访问哪些描述符集和推送常量
+
+4. **创建管线**：传入设备、配置、顶点着色器和片段着色器的 SPIR-V 文件路径
+
+### 交换链与管线的关联
+
+交换链为管线创建提供了两个关键信息：
+
+```
+VulkanSwapChain
+  ├── width() / height()  ──→  视口和裁剪矩形的尺寸
+  ├── getRenderPass()     ──→  管线执行所在的渲染通道
+  └── getSwapChainImageFormat() ──→  颜色附件的格式 (管线颜色混合配置需匹配)
+```
+
+- **视口尺寸**：管线的视口和裁剪矩形必须与交换链图像尺寸一致，否则渲染结果会被裁剪或拉伸
+- **渲染通道**：管线的渲染通道必须与帧缓冲区的渲染通道一致，附件格式必须匹配
+- **图像格式**：管线的颜色混合配置必须与交换链的颜色格式兼容
