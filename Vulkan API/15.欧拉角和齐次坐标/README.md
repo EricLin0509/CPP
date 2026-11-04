@@ -350,11 +350,10 @@ std::unique_ptr<MyModel> createCubeModel(VulkanDevice& device, glm::vec3 offset)
 ## 场景与坐标约定
 
 ```cpp
-cube.transform.translation = {.0f, .0f, .5f};  // x: [-1, 1], y: [-1, 1], z: [0, 1]
+cube.transform.translation = {.0f, .0f, .5f};
 cube.transform.scale = {.5f, .5f, .5f};
 ```
 
-- **缩放 0.5 后边长 0.5，中心推到 z = 0.5**：立方体占据 z ∈ [0.25, 0.75]，整个身体落在 NDC 的 [0, 1] 之内
 - **深度范围是 0 → 1 而不是 -1 → 1**：`GLM_FORCE_DEPTH_ZERO_TO_ONE` 与 Vulkan 的深度约定一致；深度测试 `VK_COMPARE_OP_LESS` 配清屏值 1.0，z 越小越靠前
 - **x、y 的可视范围是 [-1, 1]**：缩放后的立方体只占四分之一宽，绕原点旋转时不会飞出画面
 - **Vulkan 的 NDC 里 y 轴向下**：顶点数据中 +y 在屏幕上朝下（立方体注释 `remember y axis points down` 提醒的正是这一点），于是绕 y 轴转是绕竖直轴自转、绕 x 轴转是上下翻转、绕 z 轴转是屏幕内滚动

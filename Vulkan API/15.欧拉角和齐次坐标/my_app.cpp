@@ -95,7 +95,7 @@ void FirstApp::loadGameObjects()
   std::shared_ptr<MyModel> model = createCubeModel(device, {.0f, .0f, .0f});
   auto cube = GameObject::createGameObject();
   cube.model = model;
-  cube.transform.translation = {.0f, .0f, .5f}; // x: [-1, 1], y: [-1, 1], z: [0, 1]
+  cube.transform.translation = {.0f, .0f, .5f};
   cube.transform.scale = {.5f, .5f, .5f};
 
   gameObjects.push_back(std::move(cube));
