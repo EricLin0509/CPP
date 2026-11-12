@@ -142,20 +142,11 @@ if (index.vertex_index >= 0)
         attrib.vertices[index.vertex_index * 3 + 2],
     };
 
-    auto colorIndex = index.vertex_index * 3 + 2;
-
-    if (colorIndex < attrib.colors.size())
-    {
-        vertex.color = {
-            attrib.colors[colorIndex - 2],
-            attrib.colors[colorIndex - 1],
-            attrib.colors[colorIndex - 0],
-        };
-    }
-    else
-    {
-        vertex.color = {1.0f, 1.0f, 1.0f};
-    }
+    vertex.color = {
+        attrib.colors[index.vertex_index * 3 + 0],
+        attrib.colors[index.vertex_index * 3 + 1],
+        attrib.colors[index.vertex_index * 3 + 2],
+    };
 }
 
 if (index.normal_index >= 0)
@@ -181,10 +172,6 @@ if (index.texcoord_index >= 0)
 - **纹理坐标用 `2*i` 步长**：`attrib.texcoords` 每项只有 `u v` 两个分量
 - **`>= 0` 判断的是"文件里有没有这类索引"**：OBJ 允许 `f 1//3` 这种省略 `vt` 的写法，此时 tinyobjloader 把对应索引置为 `-1`
 - **缺失的字段保持 `Vertex{}` 的零值**：法线缺失时是 `(0, 0, 0)`、UV 缺失时是 `(0, 0)`，代码没有给它们补默认值
-- **颜色走的是另一条路**：它不由 `f` 行指定，而是从 `attrib.colors` 按"第几个顶点"直接取
-- **`colorIndex` 是蓝色分量的下标**：`vertex_index * 3 + 2` 指向三元组的最后一项，用它和 `attrib.colors.size()` 比较，等于在检查"这个顶点的颜色三元组是否完整存在"
-- **颜色三元组取 `3i`、`3i+1`、`3i+2`**：`colorIndex - 2`、`colorIndex - 1`、`colorIndex - 0` 就是这三个下标，`- 0` 只是为了和上面两行对齐写法
-- **没有颜色信息时统一给白色**：`attrib.colors` 为空（文件里 `v` 行只写了三个数）时全部顶点都是 `(1, 1, 1)`，于是画面颜色完全来自推送常量里的 `push.color`
 
 ## 去重与索引生成
 

@@ -209,20 +209,11 @@ void MyModel::Builder::loadModel(const std::string& filepath)
                     attrib.vertices[index.vertex_index * 3 + 2],
                 };
 
-                auto colorIndex = index.vertex_index * 3 + 2;
-
-                if (colorIndex < attrib.colors.size())
-                {
-                    vertex.color = {
-                        attrib.colors[colorIndex - 2],
-                        attrib.colors[colorIndex - 1],
-                        attrib.colors[colorIndex - 0],
-                    };
-                }
-                else
-                {
-                    vertex.color = {1.0f, 1.0f, 1.0f};
-                }
+                vertex.color = {
+                    attrib.colors[index.vertex_index * 3 + 0],
+                    attrib.colors[index.vertex_index * 3 + 1],
+                    attrib.colors[index.vertex_index * 3 + 2],
+                };
             }
 
             if (index.normal_index >= 0)
