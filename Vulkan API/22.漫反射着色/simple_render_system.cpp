@@ -62,9 +62,9 @@ void SimpleRenderSystem::renderGameObjects(VkCommandBuffer commandBuffer,
 
   for (auto& obj : gameObjects) {
     SimplePushConstantsData push = {};
-    auto normalMatrix = obj.transform.mat4();
-    push.transform = projectionView * normalMatrix;
-    push.normalMatrix = normalMatrix;
+    auto modelMatrix = obj.transform.mat4();
+    push.transform = projectionView * modelMatrix;
+    push.normalMatrix = obj.transform.normalMatrix();
 
     vkCmdPushConstants(
       commandBuffer,

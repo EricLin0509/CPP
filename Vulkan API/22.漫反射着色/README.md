@@ -2,7 +2,7 @@
 
 漫反射着色 (Diffuse Shader) 是一种用于模拟物体在不同角度下反射光线的着色器
 
-在渲染过程中，漫反射着色器会针对每个像素，根据物体的法线方向与相机方向，计算出该像素的漫反射颜色
+在渲染过程中，漫反射着色器会根据物体的法线方向与光源方向，计算出表面的漫反射颜色
 
 ## 光照模型
 
@@ -80,7 +80,7 @@ fragColor = lightIntensity * color;
 光照计算写在顶点着色器里，所以它是逐顶点光照：
 
 - **`fragColor` 是 `layout(location = 0) out vec3`**：顶点着色器的输出，光栅化阶段在三角形内部按重心坐标线性插值
-- **片元着色器不参与计算**：它只有 `layout(location = 0) in vec3 fragColor;` 与 `outColor = vec4(fragColor, 1.0);`，插值结果直接写进颜色附件
+- **片元着色器不参与计算**：它只把插值后的 `fragColor` 用 `outColor = vec4(fragColor, 1.0);` 写进颜色附件
 - **三角形越小，插值越接近逐像素**：`smooth_vase.obj` 有 5546 个顶点、30888 个面角（10296 个三角形），光斑过渡因此比较平滑；低面数模型上会看到明显的块状渐变
 
 ### 顶点法线
@@ -195,7 +195,7 @@ glm::mat3 TransformComponent::normalMatrix()
 - **按列组织**：第 0 列整体乘 `invScale.x`、第 1 列乘 `invScale.y`、第 2 列乘 `invScale.z`，正是 `R * S⁻¹`
 - **`1.0f / scale` 是分量除法**：得到 `(1/scale.x, 1/scale.y, 1/scale.z)`，`scale` 的任一分量为 0 时结果无效
 - **`mat4()` 与 `normalMatrix()` 的实现都放在 `my_game_object.cpp`**：头文件里只留声明，`TransformComponent` 保持轻量
-- **这个函数在当前的渲染路径里没有被调用**：`SimpleRenderSystem` 取的是 `obj.transform.mat4()` 的 `mat4` 结果，法线矩阵的 CPU 版本已经备好，但还没有接入推送常量
+- **这个函数已经在渲染路径里被调用**：`SimpleRenderSystem` 里 `push.normalMatrix = obj.transform.normalMatrix();`，CPU 算出的法线矩阵直接写进第二块推送常量
 
 ### 推送常量
 
@@ -209,9 +209,9 @@ struct SimplePushConstantsData {
 ```
 
 ```cpp
-auto normalMatrix = obj.transform.mat4();
-push.transform = projectionView * normalMatrix;
-push.normalMatrix = normalMatrix;
+auto modelMatrix = obj.transform.mat4();
+push.transform = projectionView * modelMatrix;
+push.normalMatrix = obj.transform.normalMatrix();
 ```
 
 ```glsl
@@ -222,12 +222,13 @@ layout(push_constant) uniform Push {
 ```
 
 - **`transform` 是 `P * V * M`**：把顶点从模型空间一路送到裁剪空间，`gl_Position` 直接用它的结果
-- **第二块矩阵是模型矩阵 `M`**：只含旋转、缩放、平移，用来把法线转到世界空间
+- **第二块矩阵是法线矩阵**：`R * S⁻¹`，不含平移，用来把法线转到世界空间并保持它与表面正交
 - **不能拿 `transform` 变换法线**：`P * V * M` 含投影与视图，投影会把方向压缩得失真，视图矩阵的平移也不该作用于方向
 - **两块各 64 字节，合计 128 字节**：正好等于 Vulkan 规范保证的最小 `maxPushConstantsSize`，再往里加字段就得改用 uniform buffer
 - **偏移是 0 与 64**：`mat4` 在 std140 与 std430 里都是 16 字节对齐、64 字节大小，两个字段紧挨着排
-- **字段按位置对应，不按名字对应**：C++ 侧第二个字段叫 `normalMatrix`，GLSL 侧叫 `modelMatrix`，类型同为 `mat4`，布局因此一致
-- **局部变量是 `mat4` 而非 `mat3`**：`auto normalMatrix = obj.transform.mat4()` 取的是 `mat4()` 的返回值；它先参与 `projectionView * normalMatrix`，再原样写入第二块，同一个矩阵算一次用两次
+- **字段按位置对应，不按名字对应**：C++ 侧第二个字段叫 `normalMatrix`，GLSL 侧仍沿用上一节的名字 `modelMatrix`，类型同为 `mat4`，布局因此一致；名字不同不影响数据，但读 GLSL 时要记得 `modelMatrix` 里装的是法线矩阵
+- **局部变量 `modelMatrix` 是 `mat4`**：`auto` 推导出 `mat4()` 的返回值，它只参与 `projectionView * modelMatrix`，不会写进第二块
+- **第二块来自 `normalMatrix()` 的 `mat3`**：GLM 的 `mat4` 有从 `mat3` 的转换构造函数（默认非 `explicit`），所以赋值会隐式补成 4×4——前三列的第 4 个分量为 0，第 4 列为 `(0,0,0,1)`；着色器再用 `mat3(...)` 取回左上角，得到的正是法线矩阵
 - **推送常量里没有颜色字段**：颜色完全来自顶点属性 `color`，每个顶点各带一份
 - **两个阶段都声明这块**：`pushConstantRange` 的 `stageFlags` 与 `vkCmdPushConstants` 都包含 `VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT`；片元着色器里的声明只为保持同一布局，它实际只读 `fragColor`
 
