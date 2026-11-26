@@ -127,7 +127,7 @@ constexpr std::meta::info color_info = ^^Color;
 
 使用 `[: :]` 拼接运算符来展开元数据对象中的信息，并配合 `template for` 编译期循环语句来处理不同的颜色值
 
-- `template for`: C++26 中配合反射引入的编译期循环语句，它会在编译期展开循环体
+- [`template for`](../模板for/README.md): C++26 中配合反射引入的编译期循环语句，它会在编译期展开循环体
     - 这里是为每个枚举值生成一个 `case` 分支
     - 相比于传统的 `for` 循环，`template for` 可以在编译期展开循环体，避免了运行时的开销
 
